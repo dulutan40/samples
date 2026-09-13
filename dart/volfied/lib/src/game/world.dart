@@ -25,7 +25,9 @@ class World {
   GameStatus status = GameStatus.playing;
   bool drawing = false;
   bool spaceHeld = false;
+  bool returnedToRim = false;
   Direction? heldDirection;
+  GridPoint? pathOrigin;
 
   double _moveAcc = 0;
   double _poisonAcc = 0;
@@ -38,7 +40,9 @@ class World {
     field.reset();
     player = GridPoint(0, field.size ~/ 2);
     path.clear();
+    pathOrigin = null;
     drawing = false;
+    returnedToRim = false;
     poison = null;
     status = GameStatus.playing;
     _moveAcc = 0;
@@ -55,6 +59,7 @@ class World {
   }
 
   void update(double dt) {
+    returnedToRim = false;
     if (status != GameStatus.playing) return;
 
     monster.update(dt, shouldBeBig: percent < GameConstants.shrinkAtPercent);
@@ -92,15 +97,20 @@ class World {
         _closeClaim();
         return;
       }
-      if (field.at(next) == Cell.computer && !path.contains(next)) {
+      if (spaceHeld && field.at(next) == Cell.computer && !path.contains(next)) {
         path.add(next);
         player = next;
+        return;
+      }
+      if (!spaceHeld) {
+        _retreat(next);
       }
       return;
     }
 
     if (spaceHeld && field.at(next) == Cell.computer) {
       drawing = true;
+      pathOrigin = player;
       path
         ..clear()
         ..add(next);
@@ -110,6 +120,22 @@ class World {
 
     if (field.at(next) == Cell.player && field.isShore(next)) {
       player = next;
+    }
+  }
+
+  void _retreat(GridPoint next) {
+    if (path.length >= 2 && next == path[path.length - 2]) {
+      path.removeLast();
+      player = next;
+      return;
+    }
+    if (path.length == 1 && pathOrigin != null && next == pathOrigin) {
+      player = pathOrigin!;
+      path.clear();
+      pathOrigin = null;
+      drawing = false;
+      returnedToRim = true;
+      poison = null;
     }
   }
 
@@ -125,7 +151,9 @@ class World {
       claimPartitionedRegions(field, monster.occupiedCells());
     }
     path.clear();
+    pathOrigin = null;
     drawing = false;
+    returnedToRim = true;
     poison = null;
     if (field.isShore(player) || field.at(player) == Cell.player) {
       // stay put; snap to nearest shore if we landed inside claimed land

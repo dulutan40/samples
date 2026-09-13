@@ -5,6 +5,7 @@ import '../models/direction.dart';
 
 class KeyboardHook {
   bool _space = false;
+  bool _requireFreshDown = false;
   final Set<LogicalKeyboardKey> _heldMoves = {};
 
   bool get space => _space;
@@ -29,12 +30,16 @@ class KeyboardHook {
     return null;
   }
 
+  void clearUntilNextPress() {
+    _space = false;
+    _requireFreshDown = true;
+  }
+
   KeyEventResult handle(KeyEvent event) {
     final key = event.logicalKey;
     if (!_isGameKey(key)) return KeyEventResult.ignored;
 
-    final isMove = key != LogicalKeyboardKey.space;
-    if (isMove) {
+    if (key != LogicalKeyboardKey.space) {
       if (event is KeyUpEvent) {
         _heldMoves.remove(key);
       } else {
@@ -43,16 +48,20 @@ class KeyboardHook {
       return KeyEventResult.handled;
     }
 
-    if (event is KeyDownEvent || event is KeyRepeatEvent) {
+    if (event is KeyDownEvent) {
+      _requireFreshDown = false;
       _space = true;
       return KeyEventResult.handled;
     }
-
-    if (event is KeyUpEvent) {
-      // Holding Space + arrows often synthesizes a Space key-up. Ignore that.
-      if (_heldMoves.isEmpty) {
-        _space = false;
+    if (event is KeyRepeatEvent) {
+      if (!_requireFreshDown) {
+        _space = true;
       }
+      return KeyEventResult.handled;
+    }
+    if (event is KeyUpEvent) {
+      _space = false;
+      _requireFreshDown = false;
     }
     return KeyEventResult.handled;
   }

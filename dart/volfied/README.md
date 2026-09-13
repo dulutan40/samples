@@ -7,7 +7,7 @@ You start at **0%** (a one-cell rim). A clear run can reach about **99.9%**. Thi
 ## Play
 
 - Arrow keys (or WASD) move on the **border** between your land and the computer’s.
-- Hold **space** and press an arrow to leave the rim. After that, arrows keep cutting until you return.
+- Hold **space** and press an arrow to cut into enemy ground. Release space to walk the rim again, or backtrack the open trail.
 - Close the trail on your own land to keep the partitioned region that does **not** contain the monster. Shapes are orthogonal: rectangles or even-sided polygons.
 - If the monster touches you, you die.
 - If it touches your open trail, poison races along the line toward you. Reach safety first and the poison dies. If it reaches you first, you die.

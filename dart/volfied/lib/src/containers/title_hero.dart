@@ -28,7 +28,7 @@ class TitleHero extends StatelessWidget {
           PixelButton(label: 'ENTER THE FIELD', onPressed: onPlay),
           const SizedBox(height: 18),
           const ArcadeText(
-            'Arrows move on the border. Hold space and press an arrow to leave the rim. Once you are cutting, arrows keep the trail going until you return.',
+            'Arrows walk the rim. Hold space and press an arrow to cut. Release space to stop cutting — you can walk the rim again or backtrack the trail.',
             size: 13,
             align: TextAlign.center,
             weight: FontWeight.w400,
