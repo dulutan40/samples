@@ -1,4 +1,4 @@
-# Plus Minus
+# Crack the Code
 
 React Native sample (Expo, TypeScript). Mastermind with digits: one player hides a code, the other scores each guess with pluses and minuses.
 

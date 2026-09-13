@@ -97,7 +97,7 @@ function evaluateGuess(secret, guess) {
 
   host.close();
   guest.close();
-  console.log('plus-minus smoke test passed');
+  console.log('crack-the-code smoke test passed');
 })().catch((error) => {
   console.error(error);
   process.exit(1);

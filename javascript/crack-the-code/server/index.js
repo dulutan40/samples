@@ -271,5 +271,5 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Plus Minus room server listening on http://0.0.0.0:${PORT}`);
+  console.log(`Crack the Code room server listening on http://0.0.0.0:${PORT}`);
 });

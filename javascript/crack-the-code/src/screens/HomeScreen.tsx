@@ -11,7 +11,7 @@ export function HomeScreen() {
   return (
     <Screen
       eyebrow="Mastermind, with digits"
-      title="Plus Minus"
+      title="Crack the Code"
       subtitle="Someone hides a code with unique digits. Each guess scores pluses for right place and minuses for right digit, wrong place."
     >
       <Text style={styles.section}>Code length</Text>
