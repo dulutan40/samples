@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:math' as math;
 
 import '../game/playfield.dart';
@@ -34,6 +35,45 @@ bool headFits(Playfield field, math.Point<double> point, double radius) {
   return true;
 }
 
+double radiusFor(Playfield field, {required bool big}) {
+  final playArea = field.startingInner.toDouble();
+  final area = playArea *
+      (big ? GameConstants.bigAreaFraction : GameConstants.smallAreaFraction);
+  final headArea =
+      area * (big ? GameConstants.bigHeadShare : GameConstants.smallHeadShare);
+  return math.sqrt(headArea / math.pi) * 0.5;
+}
+
+math.Point<double>? nearbyFit(
+  Playfield field,
+  math.Point<double> origin,
+  double radius, {
+  double maxShift = GameConstants.monsterGrowNudge,
+}) {
+  if (headFits(field, origin, radius)) return origin;
+  math.Point<double>? best;
+  var bestScore = double.infinity;
+  final mid = field.size / 2;
+  for (var step = 0.5; step <= maxShift + 0.001; step += 0.5) {
+    const samples = 16;
+    for (var i = 0; i < samples; i += 1) {
+      final angle = i * math.pi * 2 / samples;
+      final point = math.Point(
+        origin.x + math.cos(angle) * step,
+        origin.y + math.sin(angle) * step,
+      );
+      if (!headFits(field, point, radius)) continue;
+      final inward = (point.x - mid) * (point.x - mid) + (point.y - mid) * (point.y - mid);
+      final score = step * 20 + inward * 0.01;
+      if (score < bestScore) {
+        bestScore = score;
+        best = point;
+      }
+    }
+  }
+  return best;
+}
+
 class Monster {
   Monster(this.field, math.Random random) : _random = random {
     reset(big: true);
@@ -59,6 +99,7 @@ class Monster {
   double _orbitAngle = 0;
   double _orbitRadius = GameConstants.monsterOrbitMax;
   double _orbitSign = 1;
+  double _stuckHeat = 0;
 
   bool get collecting => phase == MonsterPhase.collect;
 
@@ -78,6 +119,7 @@ class Monster {
     _orbitAngle = _random.nextDouble() * math.pi * 2;
     _orbitRadius = GameConstants.monsterOrbitMax;
     _orbitSign = _random.nextBool() ? 1 : -1;
+    _stuckHeat = 0;
   }
 
   GridPoint get occupiedCell {
@@ -210,8 +252,7 @@ class Monster {
       _restAcc += dt;
       velocity = const math.Point(0, 0);
       if (_restAcc >= GameConstants.monsterRestSeconds) {
-        phase = MonsterPhase.charge;
-        _cycleAcc = 0;
+        _beginPatrol();
       }
       return;
     }
@@ -222,7 +263,10 @@ class Monster {
       return;
     }
 
-    final speed = hunt ? GameConstants.monsterHuntSpeed : GameConstants.monsterSpeed;
+    final panic = _refreshPanic();
+    final speed =
+        (hunt ? GameConstants.monsterHuntSpeed : GameConstants.monsterSpeed) *
+            (1 + panic * 0.55);
     final minR = hunt ? GameConstants.monsterHuntOrbitMin : GameConstants.monsterOrbitMin;
     final maxR = hunt ? GameConstants.monsterHuntOrbitMax : GameConstants.monsterOrbitMax;
     final keepAway = hunt ? GameConstants.monsterHuntKeepAway : GameConstants.monsterKeepAway;
@@ -230,13 +274,14 @@ class Monster {
 
     _untilJitter -= dt;
     if (_untilJitter <= 0) {
-      if (_random.nextDouble() < 0.55) _orbitSign *= -1;
+      if (_random.nextDouble() < 0.55 + panic * 0.35) _orbitSign *= -1;
       _orbitRadius = minR + _random.nextDouble() * (maxR - minR);
-      _orbitAngle += (_random.nextDouble() - 0.5) * 1.8;
-      _untilJitter = GameConstants.monsterTurnSeconds * (0.35 + _random.nextDouble());
+      _orbitAngle += (_random.nextDouble() - 0.5) * (1.8 + panic * 2.4);
+      _untilJitter =
+          GameConstants.monsterTurnSeconds * (0.35 + _random.nextDouble()) / (1 + panic * 2);
     }
 
-    final spin = (hunt ? 2.4 : 1.7) * _orbitSign;
+    final spin = (hunt ? 2.4 : 1.7) * _orbitSign * (1 + panic * 1.6);
     _orbitAngle += spin * dt;
 
     final zone = _zoneCenter(prey);
@@ -245,21 +290,25 @@ class Monster {
       zone.y + math.sin(_orbitAngle) * _orbitRadius,
     );
 
-    var desired = _nudge(_toward(orbit, speed), speed * 0.28);
+    var desired = _nudge(_toward(orbit, speed), speed * (0.28 + panic * 0.45));
     final gap = distance(head, prey);
     if (gap < keepAway) {
       desired = _nudge(_away(prey, speed), speed * 0.18);
     }
 
+    final steer = (GameConstants.monsterSteer * (1 + panic * 0.9)).clamp(0.1, 0.95);
     velocity = math.Point(
-      velocity.x + (desired.x - velocity.x) * GameConstants.monsterSteer,
-      velocity.y + (desired.y - velocity.y) * GameConstants.monsterSteer,
+      velocity.x + (desired.x - velocity.x) * steer,
+      velocity.y + (desired.y - velocity.y) * steer,
     );
 
     if (!_tryMove(dt)) {
-      _orbitAngle += _orbitSign * 0.7;
-      velocity = _nudge(_toward(orbit, speed), speed * 0.35);
+      _stuckHeat = (_stuckHeat + dt * 2).clamp(0, 1);
+      _orbitAngle += _orbitSign * (0.7 + panic);
+      velocity = _nudge(_toward(orbit, speed), speed * (0.35 + panic * 0.5));
       _tryMove(dt);
+    } else {
+      _stuckHeat = math.max(0, _stuckHeat - dt * 0.35);
     }
   }
 
@@ -282,10 +331,73 @@ class Monster {
       ..clear()
       ..add(head);
     cycle.finishCycle();
-    _applySize(big: cycle.big);
     phase = MonsterPhase.rest;
     _restAcc = 0;
     _cycleAcc = 0;
+  }
+
+  void tryResizeForPatrol() => _applyPlannedSize();
+
+  void _beginPatrol() {
+    _applyPlannedSize();
+    phase = MonsterPhase.charge;
+    _cycleAcc = 0;
+    _stuckHeat = 0;
+  }
+
+  void _applyPlannedSize() {
+    if (!cycle.big) {
+      _applySize(big: false);
+      return;
+    }
+    final largeRadius = radiusFor(field, big: true);
+    if (headFits(field, head, largeRadius)) {
+      _applySize(big: true);
+      return;
+    }
+    final shift = nearbyFit(
+      field,
+      head,
+      largeRadius,
+      maxShift: GameConstants.monsterGrowNudge,
+    );
+    if (shift != null) {
+      _placeHead(shift);
+      _applySize(big: true);
+      return;
+    }
+    cycle.lockTiny();
+    _applySize(big: false);
+  }
+
+  double _refreshPanic() {
+    final room = _homeArea();
+    final comfort = math.max(80, math.pi * math.pow(headRadius * 5, 2));
+    final cramped = (1 - room / comfort).clamp(0.0, 1.0);
+    return (cramped * 0.75 + _stuckHeat * 0.55).clamp(0.0, 1.0);
+  }
+
+  int _homeArea() {
+    final start = sideCell;
+    if (!field.inBounds(start) || field.at(start) != Cell.computer) return 0;
+    final seen = <GridPoint>{start};
+    final queue = Queue<GridPoint>()..add(start);
+    var count = 0;
+    while (queue.isNotEmpty) {
+      final current = queue.removeFirst();
+      count += 1;
+      for (final delta in neighbors4) {
+        final next = current + delta;
+        if (seen.contains(next) ||
+            !field.inBounds(next) ||
+            field.at(next) != Cell.computer) {
+          continue;
+        }
+        seen.add(next);
+        queue.add(next);
+      }
+    }
+    return count;
   }
 
   math.Point<double> _zoneCenter(math.Point<double> prey) {
@@ -303,10 +415,9 @@ class Monster {
         (big ? GameConstants.bigAreaFraction : GameConstants.smallAreaFraction);
     final headArea =
         area * (big ? GameConstants.bigHeadShare : GameConstants.smallHeadShare);
-    final fullHeadRadius = math.sqrt(headArea / math.pi);
-    headRadius = fullHeadRadius * 0.5;
+    headRadius = radiusFor(field, big: big);
     final bodyArea = area - headArea;
-    bodyWidth = math.max(0.7, fullHeadRadius * (big ? 0.55 : 0.45));
+    bodyWidth = math.max(0.7, headRadius * 2 * (big ? 0.55 : 0.45));
     bodyLength = math.max(8, (bodyArea / bodyWidth).round());
     if (body.isEmpty) return;
     while (body.length > bodyLength) {

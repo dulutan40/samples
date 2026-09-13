@@ -9,6 +9,12 @@ class MonsterCycle {
 
   bool get big => !tiny;
 
+  void lockTiny() {
+    tiny = true;
+    largeBurst = 0;
+    remainingLarge = 0;
+  }
+
   void finishCycle() {
     if (tiny) {
       if (largeBurst > 1) {

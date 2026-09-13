@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:volfied/src/game/playfield.dart';
+import 'package:volfied/src/helpers/constants.dart';
+import 'package:volfied/src/helpers/geometry.dart';
 import 'package:volfied/src/models/cell.dart';
 import 'package:volfied/src/models/grid_point.dart';
 import 'package:volfied/src/scripts/monster_ai.dart';
@@ -78,5 +80,51 @@ void main() {
 
     expect(headFits(field, monster.head, monster.headRadius), isTrue);
     expect(monster.head.x, greaterThan(8.2));
+  });
+
+  test('a locked cycle never returns to the large head', () {
+    final cycle = MonsterCycle(largeBurst: 4);
+    cycle.lockTiny();
+    expect(cycle.big, isFalse);
+    cycle.finishCycle();
+    expect(cycle.big, isFalse);
+    cycle.finishCycle();
+    expect(cycle.big, isFalse);
+  });
+
+  test('growing near a shore sidesteps instead of overlapping the rim', () {
+    final field = Playfield();
+    final monster = Monster(field, math.Random(1));
+    final start = math.Point(2.0, field.size / 2);
+    monster.head = start;
+    monster.body
+      ..clear()
+      ..add(start);
+    monster.tryResizeForPatrol();
+
+    expect(monster.big, isTrue);
+    expect(headFits(field, monster.head, monster.headRadius), isTrue);
+    expect(distance(start, monster.head), lessThan(GameConstants.monsterGrowNudge + 0.01));
+  });
+
+  test('if a large head cannot sidestep it stays small forever', () {
+    final field = Playfield();
+    for (var y = 1; y < field.size - 1; y += 1) {
+      for (var x = 1; x < field.size - 1; x += 1) {
+        if (x >= 34 && x <= 36 && y >= 34 && y <= 36) continue;
+        field.set(GridPoint(x, y), Cell.player);
+      }
+    }
+    final monster = Monster(field, math.Random(2));
+    monster.head = const math.Point(35.5, 35.5);
+    monster.body
+      ..clear()
+      ..add(monster.head);
+    monster.tryResizeForPatrol();
+
+    expect(monster.big, isFalse);
+    expect(monster.cycle.big, isFalse);
+    monster.cycle.finishCycle();
+    expect(monster.cycle.big, isFalse);
   });
 }

@@ -17,7 +17,8 @@ class GameConstants {
   static const double monsterTurnSeconds = 0.32;
   static const double monsterCycleSeconds = 10;
   static const double monsterCollectSeconds = 1.25;
-  static const double monsterRestSeconds = 3;
+  static const double monsterRestSeconds = 1;
+  static const double monsterGrowNudge = 3.5;
   static const int monsterStartLargeCycles = 6;
 
   static const double bigAreaFraction = 1 / 20;
