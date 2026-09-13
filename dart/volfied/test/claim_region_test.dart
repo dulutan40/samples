@@ -21,10 +21,12 @@ void main() {
       field.set(cell, Cell.player);
     }
 
-    claimEnclosedRegion(field, const GridPoint(6, 6));
+    claimPartitionedRegions(field, const [GridPoint(6, 6)]);
 
     expect(field.at(const GridPoint(3, 2)), Cell.player);
     expect(field.at(const GridPoint(4, 2)), Cell.player);
+    expect(field.at(const GridPoint(3, 1)), Cell.player);
+    expect(field.at(const GridPoint(4, 1)), Cell.player);
     expect(field.at(const GridPoint(6, 6)), Cell.computer);
     expect(field.at(const GridPoint(1, 1)), Cell.computer);
   });

@@ -49,6 +49,35 @@ class Monster {
     return GridPoint(x, y);
   }
 
+  Iterable<GridPoint> occupiedCells() sync* {
+    final seen = <GridPoint>{};
+    void add(math.Point<double> point, double radius) {
+      final minX = (point.x - radius).floor();
+      final maxX = (point.x + radius).ceil();
+      final minY = (point.y - radius).floor();
+      final maxY = (point.y + radius).ceil();
+      for (var y = minY; y <= maxY; y += 1) {
+        for (var x = minX; x <= maxX; x += 1) {
+          final cell = GridPoint(x, y);
+          if (!field.inBounds(cell) || seen.contains(cell)) continue;
+          final cx = x + 0.5;
+          final cy = y + 0.5;
+          final dx = cx - point.x;
+          final dy = cy - point.y;
+          if (dx * dx + dy * dy <= radius * radius) {
+            seen.add(cell);
+          }
+        }
+      }
+    }
+
+    add(head, headRadius + 0.6);
+    for (final point in body) {
+      add(point, bodyWidth * 0.6);
+    }
+    yield* seen;
+  }
+
   void update(double dt, {required bool shouldBeBig}) {
     if (shouldBeBig != big) {
       reset(big: shouldBeBig);

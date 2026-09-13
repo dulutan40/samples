@@ -87,7 +87,6 @@ class World {
     if (!field.inBounds(next)) return;
 
     if (drawing) {
-      if (!spaceHeld) return;
       if (field.at(next) == Cell.player) {
         player = next;
         _closeClaim();
@@ -123,7 +122,7 @@ class World {
       field.set(cell, Cell.player);
     }
     if (complete) {
-      claimEnclosedRegion(field, monster.occupiedCell);
+      claimPartitionedRegions(field, monster.occupiedCells());
     }
     path.clear();
     drawing = false;
