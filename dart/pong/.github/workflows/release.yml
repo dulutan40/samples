@@ -1,0 +1,130 @@
+# Builds artifacts on tag v* or manual dispatch.
+# Optional: TestFlight + Play internal upload when repository secrets are set.
+# See docs/RELEASE.md
+
+name: Release artifacts
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  linux_web_android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - run: flutter pub get
+
+      - name: Web
+        run: flutter build web --release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-release
+          path: build/web
+
+      - name: Android APK (release; uses debug keystore if android/key.properties is absent)
+        run: flutter build apk --release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk-release
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Android App Bundle (Play Store)
+        id: aab
+        continue-on-error: true
+        run: flutter build appbundle --release
+
+      - name: Upload AAB
+        if: steps.aab.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-aab-release
+          path: build/app/outputs/bundle/release/*.aab
+
+      - uses: ruby/setup-ruby@v1
+        if: ${{ secrets.PLAY_JSON_KEY != '' }}
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Write Play service account JSON
+        if: ${{ secrets.PLAY_JSON_KEY != '' && steps.aab.outcome == 'success' }}
+        env:
+          PLAY_JSON_KEY: ${{ secrets.PLAY_JSON_KEY }}
+        run: printf '%s' "$PLAY_JSON_KEY" > "${{ github.workspace }}/play-service-account.json"
+
+      - name: Fastlane — Play internal track
+        if: ${{ secrets.PLAY_JSON_KEY != '' && steps.aab.outcome == 'success' }}
+        env:
+          PLAY_JSON_KEY_PATH: ${{ github.workspace }}/play-service-account.json
+          APP_IDENTIFIER: com.dulutan.pong
+        run: bundle exec fastlane android beta_play_internal
+        continue-on-error: true
+
+  macos_ios_desktop:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - name: CocoaPods (iOS)
+        run: pod install
+        working-directory: ios
+
+      - name: iOS (no codesign; validates compile)
+        run: flutter build ios --release --no-codesign
+
+      - name: macOS
+        id: macos_build
+        run: flutter build macos --release
+        continue-on-error: true
+
+      - name: Zip macOS app
+        if: steps.macos_build.outcome == 'success'
+        run: ditto -c -k --sequesterRsrc --keepParent "build/macos/Build/Products/Release/Pong.app" "pong-macos-release.zip"
+
+      - name: Upload macOS app zip
+        if: steps.macos_build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pong-macos-app
+          path: pong-macos-release.zip
+
+      - uses: ruby/setup-ruby@v1
+        if: ${{ secrets.MATCH_PASSWORD != '' && secrets.MATCH_GIT_URL != '' && secrets.APP_STORE_CONNECT_API_KEY != '' }}
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Fastlane — Match + TestFlight (IPA)
+        if: ${{ secrets.MATCH_PASSWORD != '' && secrets.MATCH_GIT_URL != '' && secrets.APP_STORE_CONNECT_API_KEY != '' }}
+        env:
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_READONLY: "true"
+          APP_IDENTIFIER: com.dulutan.pong
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+        run: bundle exec fastlane ios beta_testflight
+        continue-on-error: true

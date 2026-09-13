@@ -1,0 +1,23 @@
+enum BadgeId {
+  firstHit,
+  firstWinCpu,
+  firstWinOnline,
+  rally10,
+  rally25,
+  rally50,
+  rally100,
+  winStreak3,
+  winStreak5,
+  winStreak10,
+  dailyStreak3,
+  dailyStreak7,
+  dailyStreak30,
+  powerupCollector10,
+  powerupCollector50,
+  powerupCollector200,
+  portalSurvivor,
+  comeback,
+  speedDemon,
+  twoPaddlesMaster,
+}
+

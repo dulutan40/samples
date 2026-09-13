@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# After you set a production origin, replace with your canonical host, e.g.:
+# Sitemap: https://YOUR_DOMAIN/sitemap.xml

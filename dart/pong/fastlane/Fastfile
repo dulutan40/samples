@@ -1,0 +1,92 @@
+# frozen_string_literal: true
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Create / refresh App Store signing (run locally; writes to MATCH git repo)"
+  lane :certificates do
+    match(
+      type: "appstore",
+      app_identifier: ENV.fetch("APP_IDENTIFIER", "com.dulutan.pong"),
+      readonly: false
+    )
+  end
+
+  desc "Build IPA and upload to TestFlight (CI: set MATCH_READONLY=true, provide API key)"
+  lane :beta_testflight do
+    match(
+      type: "appstore",
+      app_identifier: ENV.fetch("APP_IDENTIFIER", "com.dulutan.pong"),
+      readonly: ENV["MATCH_READONLY"] == "true"
+    )
+    sh("flutter", "build", "ipa", "--release", "--export-options-plist=ios/ExportOptions.plist")
+    ipa = Dir.glob("build/ios/ipa/*.ipa").first
+    UI.user_error!("IPA not found under build/ios/ipa") if ipa.nil?
+
+    upload_to_testflight(
+      ipa: ipa,
+      skip_waiting_for_build_processing: true
+    )
+  end
+end
+
+platform :mac do
+  desc "Build macOS release (.app). Upload with Transporter or Xcode Organizer to App Store Connect."
+  lane :build_macos do
+    match(
+      type: "appstore",
+      platform: "macos",
+      app_identifier: ENV.fetch("APP_IDENTIFIER", "com.dulutan.pong"),
+      readonly: ENV["MATCH_READONLY"] == "true"
+    )
+    sh("flutter", "build", "macos", "--release")
+    UI.success!("Flutter output: build/macos/Build/Products/Release/Pong.app (name matches PRODUCT_NAME)")
+  end
+
+  desc "Upload existing macOS .pkg/.app to App Store Connect (requires notarized Mac App Store build path)"
+  lane :upload_mac_app_store do
+    pkg = ENV["MACOS_PKG_PATH"]
+    UI.user_error!("Set MACOS_PKG_PATH to your exported .pkg for Mac App Store") if pkg.nil? || pkg.empty? || !File.exist?(pkg)
+
+    upload_to_app_store(
+      pkg: pkg,
+      app_identifier: ENV.fetch("APP_IDENTIFIER", "com.dulutan.pong"),
+      skip_metadata: true,
+      skip_screenshots: true
+    )
+  end
+end
+
+platform :android do
+  desc "Build AAB and upload to Play Console internal track"
+  lane :beta_play_internal do
+    sh("flutter", "build", "appbundle", "--release")
+    aab = "build/app/outputs/bundle/release/app-release.aab"
+    UI.user_error!("AAB not found at #{aab}") unless File.exist?(aab)
+
+    json_key = ENV["PLAY_JSON_KEY_PATH"]
+    UI.user_error!("Set PLAY_JSON_KEY_PATH to service account JSON path") if json_key.nil? || json_key.empty?
+
+    upload_to_play_store(
+      track: "internal",
+      aab: aab,
+      package_name: ENV.fetch("APP_IDENTIFIER", "com.dulutan.pong"),
+      json_key: json_key
+    )
+  end
+
+  desc "Promote latest internal testing release to production (no new binary)"
+  lane :promote_play_production do
+    json_key = ENV["PLAY_JSON_KEY_PATH"]
+    UI.user_error!("Set PLAY_JSON_KEY_PATH to service account JSON path") if json_key.nil? || json_key.empty?
+
+    upload_to_play_store(
+      track: "internal",
+      track_promote_to: "production",
+      skip_upload_apk: true,
+      skip_upload_aab: true,
+      package_name: ENV.fetch("APP_IDENTIFIER", "com.dulutan.pong"),
+      json_key: json_key
+    )
+  end
+end

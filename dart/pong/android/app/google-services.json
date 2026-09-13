@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "622827221535",
+    "project_id": "flutter-pong-d6002",
+    "storage_bucket": "flutter-pong-d6002.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:622827221535:android:f7e00ebf1288298425db2a",
+        "android_client_info": {
+          "package_name": "com.dulutan.pong"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAoPIdeGp1q6eLhPD8_puU_069qUmxx4rQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
