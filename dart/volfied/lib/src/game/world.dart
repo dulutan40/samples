@@ -29,7 +29,6 @@ class World {
   GridPoint? pathOrigin;
 
   double _moveAcc = 0;
-  double _poisonAcc = 0;
 
   double get percent => field.claimedPercent();
 
@@ -44,7 +43,6 @@ class World {
     poison = null;
     status = GameStatus.playing;
     _moveAcc = 0;
-    _poisonAcc = 0;
     monster = Monster(field, _random);
   }
 
@@ -69,10 +67,8 @@ class World {
 
     if (status != GameStatus.playing) return;
 
-    _poisonAcc += dt;
-    while (poison != null && _poisonAcc >= GameConstants.poisonStepSeconds) {
-      _poisonAcc -= GameConstants.poisonStepSeconds;
-      poison!.stepTowardUser();
+    if (poison != null) {
+      poison!.advance(dt, GameConstants.poisonStepSeconds);
       if (drawing && (poison!.reachedUser || poison!.overranRetreat)) {
         status = GameStatus.lost;
         return;
@@ -198,15 +194,14 @@ class World {
   }
 
   void _resolveMonsterTouch() {
-    if (!drawing) return;
-    if (_monsterHitsPlayer()) {
-      status = GameStatus.lost;
-      return;
-    }
-    if (path.isEmpty || poison != null) return;
+    if (!drawing || path.isEmpty) return;
     final hit = _monsterHitsPath();
     if (hit != null) {
-      poison = Poison(path: path, index: hit);
+      poison ??= Poison(path: path, index: hit);
+      return;
+    }
+    if (poison == null && _monsterHitsPlayer()) {
+      status = GameStatus.lost;
     }
   }
 
@@ -225,10 +220,18 @@ class World {
 
   int? _monsterHitsPath() {
     final last = path.length - 1;
+    int? best;
+    var bestDist = double.infinity;
     for (var i = 0; i < last; i += 1) {
-      if (_overlapsMonster(cellCenter(path[i]))) return i;
+      final center = cellCenter(path[i]);
+      if (!_overlapsMonster(center)) continue;
+      final gap = distance(center, monster.head);
+      if (gap < bestDist) {
+        bestDist = gap;
+        best = i;
+      }
     }
-    return null;
+    return best;
   }
 
   bool _overlapsMonster(math.Point<double> point) {

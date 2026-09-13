@@ -11,7 +11,8 @@ class GameColors {
   static const Color computer = Color(0xFF050608);
   static const Color trail = Color(0xFFF4D35E);
   static const Color player = Color(0xFF7CFFCB);
-  static const Color poison = Color(0xFFFF3B6B);
+  static const Color poison = Color(0xFFB56BFF);
+  static const Color poisonCore = Color(0xFFE8B8FF);
   static const Color monster = Color(0xFF9B5CFF);
   static const Color monsterHead = Color(0xFFE8B8FF);
   static const Color accent = Color(0xFF3CE0C8);

@@ -36,4 +36,21 @@ void main() {
     expect(poison.reachedUser, isTrue);
     expect(poison.cell, const GridPoint(2, 4));
   });
+
+  test('poison advances along the trail without jumping to the tip', () {
+    final path = [
+      const GridPoint(1, 1),
+      const GridPoint(1, 2),
+      const GridPoint(1, 3),
+      const GridPoint(1, 4),
+      const GridPoint(1, 5),
+    ];
+    final poison = Poison(path: path, index: 0);
+    poison.advance(0.035, 0.035);
+    expect(poison.index, 1);
+    expect(poison.reachedUser, isFalse);
+    poison.advance(0.035, 0.035);
+    expect(poison.index, 2);
+    expect(poison.reachedUser, isFalse);
+  });
 }

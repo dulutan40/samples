@@ -4,7 +4,7 @@ class GameConstants {
   static const double theoreticalMaxPercent = 99.9;
 
   static const double playerStepSeconds = 0.07;
-  static const double poisonStepSeconds = 0.12;
+  static const double poisonStepSeconds = playerStepSeconds / 2;
   static const double monsterSpeed = 11;
   static const double monsterHuntSpeed = 13;
   static const double monsterSteer = 0.2;

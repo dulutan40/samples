@@ -69,16 +69,19 @@ class _PlayfieldPainter extends CustomPainter {
       canvas.drawRect(_cellRect(origin, cell, point.x, point.y), trailFill);
     }
 
-    canvas.drawRect(Rect.fromLTWH(origin.dx, origin.dy, cell * n, cell * n), edge);
-
-    if (world.poison != null && world.poison!.alive && world.path.isNotEmpty) {
-      final p = world.poison!.cell;
-      canvas.drawCircle(
-        Offset(origin.dx + (p.x + 0.5) * cell, origin.dy + (p.y + 0.5) * cell),
-        cell * 0.42,
-        Paint()..color = GameColors.poison,
-      );
+    final poison = world.poison;
+    if (poison != null && poison.alive && world.path.isNotEmpty) {
+      final stain = Paint()
+        ..color = GameColors.poison.withValues(alpha: 0.55)
+        ..isAntiAlias = false;
+      final last = poison.index.clamp(0, world.path.length - 1);
+      for (var i = 0; i <= last; i += 1) {
+        final point = world.path[i];
+        canvas.drawRect(_cellRect(origin, cell, point.x, point.y), stain);
+      }
     }
+
+    canvas.drawRect(Rect.fromLTWH(origin.dx, origin.dy, cell * n, cell * n), edge);
 
     final body = Paint()
       ..color = GameColors.monster
@@ -104,6 +107,13 @@ class _PlayfieldPainter extends CustomPainter {
       world.monster.headRadius * cell,
       Paint()..color = GameColors.monsterHead,
     );
+
+    if (poison != null && poison.alive && world.path.isNotEmpty) {
+      final at = poison.visualCenter;
+      final center = Offset(origin.dx + at.x * cell, origin.dy + at.y * cell);
+      canvas.drawCircle(center, cell * 0.72, Paint()..color = GameColors.poison);
+      canvas.drawCircle(center, cell * 0.38, Paint()..color = GameColors.poisonCore);
+    }
 
     canvas.drawCircle(
       Offset(
