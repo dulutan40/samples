@@ -59,7 +59,6 @@ class World {
 
     monster.update(
       dt,
-      shouldBeBig: percent < GameConstants.shrinkAtPercent,
       prey: cellCenter(player),
       hunt: drawing,
     );
@@ -154,13 +153,14 @@ class World {
         trail: trail,
         origin: origin,
         close: player,
-        monsterCells: monster.occupiedCells(),
+        monsterCells: [monster.sideCell],
       );
     } else {
       for (final cell in trail) {
         field.set(cell, Cell.player);
       }
     }
+    monster.freeFromWalls();
 
     path.clear();
     pathOrigin = null;
@@ -206,7 +206,7 @@ class World {
   }
 
   bool _monsterHitsPlayer() {
-    return distance(cellCenter(player), monster.head) <= GameConstants.playerHitRadius;
+    return distance(cellCenter(player), monster.head) <= monster.headRadius;
   }
 
   bool _isContinuous(List<GridPoint> cells) {

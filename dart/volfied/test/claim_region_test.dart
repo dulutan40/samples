@@ -85,4 +85,36 @@ void main() {
     expect(field.at(const GridPoint(10, 10)), Cell.computer);
     expect(field.at(const GridPoint(1, 1)), Cell.computer);
   });
+
+  test('touching the trail does not lock the monster inside the pocket', () {
+    final field = Playfield(size: 8);
+    const trail = [
+      GridPoint(2, 1),
+      GridPoint(2, 2),
+      GridPoint(2, 3),
+      GridPoint(3, 3),
+      GridPoint(4, 3),
+      GridPoint(5, 3),
+      GridPoint(5, 2),
+      GridPoint(5, 1),
+    ];
+
+    claimClosedLoop(
+      field: field,
+      trail: trail,
+      origin: const GridPoint(2, 0),
+      close: const GridPoint(5, 0),
+      monsterCells: const [
+        GridPoint(6, 3),
+        GridPoint(3, 2),
+        GridPoint(4, 2),
+        GridPoint(5, 2),
+      ],
+    );
+
+    expect(field.at(const GridPoint(3, 2)), Cell.player);
+    expect(field.at(const GridPoint(4, 2)), Cell.player);
+    expect(field.at(const GridPoint(6, 3)), Cell.computer);
+    expect(field.at(const GridPoint(6, 6)), Cell.computer);
+  });
 }

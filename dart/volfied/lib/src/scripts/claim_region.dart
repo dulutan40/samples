@@ -70,8 +70,7 @@ void claimClosedLoop({
   final polygon = _loopVertices(origin, trail, close, rim);
   if (polygon.length >= 3) {
     final interior = _cellsInside(field, polygon);
-    final monsterSet = monsterCells.toSet();
-    final monsterInside = interior.any(monsterSet.contains);
+    final monsterInside = monsterCells.any(interior.contains);
     if (!monsterInside) {
       for (final cell in interior) {
         field.set(cell, Cell.player);
@@ -123,25 +122,17 @@ void claimPartitionedRegions(Playfield field, Iterable<GridPoint> monsterCells) 
   final parts = computerComponents(field);
   if (parts.isEmpty) return;
 
-  final monsterSet = monsterCells.toSet();
-  Set<GridPoint> keep = parts.first;
-  var keepHits = -1;
-  var keepSize = -1;
-
-  for (final part in parts) {
-    var hits = 0;
-    for (final cell in part) {
-      if (monsterSet.contains(cell)) hits += 1;
+  Set<GridPoint>? keep;
+  for (final cell in monsterCells) {
+    for (final part in parts) {
+      if (part.contains(cell)) {
+        keep = part;
+        break;
+      }
     }
-    final betterHits = hits > keepHits;
-    final sameHitsLarger = hits == keepHits && part.length > keepSize && hits > 0;
-    final noHitsYetLargest = keepHits <= 0 && hits <= 0 && part.length > keepSize;
-    if (betterHits || sameHitsLarger || noHitsYetLargest) {
-      keep = part;
-      keepHits = hits;
-      keepSize = part.length;
-    }
+    if (keep != null) break;
   }
+  keep ??= parts.reduce((a, b) => a.length >= b.length ? a : b);
 
   for (final part in parts) {
     if (identical(part, keep)) continue;
