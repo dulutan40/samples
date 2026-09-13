@@ -25,7 +25,6 @@ class World {
   GameStatus status = GameStatus.playing;
   bool drawing = false;
   bool spaceHeld = false;
-  bool returnedToRim = false;
   Direction? heldDirection;
   GridPoint? pathOrigin;
 
@@ -42,7 +41,6 @@ class World {
     path.clear();
     pathOrigin = null;
     drawing = false;
-    returnedToRim = false;
     poison = null;
     status = GameStatus.playing;
     _moveAcc = 0;
@@ -59,10 +57,14 @@ class World {
   }
 
   void update(double dt) {
-    returnedToRim = false;
     if (status != GameStatus.playing) return;
 
-    monster.update(dt, shouldBeBig: percent < GameConstants.shrinkAtPercent);
+    monster.update(
+      dt,
+      shouldBeBig: percent < GameConstants.shrinkAtPercent,
+      prey: cellCenter(player),
+      hunt: drawing,
+    );
     _resolveMonsterTouch();
 
     if (status != GameStatus.playing) return;
@@ -71,7 +73,7 @@ class World {
     while (poison != null && _poisonAcc >= GameConstants.poisonStepSeconds) {
       _poisonAcc -= GameConstants.poisonStepSeconds;
       poison!.stepTowardUser();
-      if (poison!.reachedUser && drawing) {
+      if (drawing && (poison!.reachedUser || poison!.overranRetreat)) {
         status = GameStatus.lost;
         return;
       }
@@ -127,6 +129,9 @@ class World {
     if (path.length >= 2 && next == path[path.length - 2]) {
       path.removeLast();
       player = next;
+      if (poison != null && poison!.index >= path.length) {
+        status = GameStatus.lost;
+      }
       return;
     }
     if (path.length == 1 && pathOrigin != null && next == pathOrigin) {
@@ -134,29 +139,38 @@ class World {
       path.clear();
       pathOrigin = null;
       drawing = false;
-      returnedToRim = true;
       poison = null;
     }
   }
 
   void _closeClaim() {
-    final complete = path.isNotEmpty &&
-        _isContinuous(path) &&
-        touches(field, path.first, Cell.player) &&
-        touches(field, path.last, Cell.player);
-    for (final cell in path) {
-      field.set(cell, Cell.player);
-    }
+    final origin = pathOrigin;
+    final trail = List<GridPoint>.from(path);
+    final complete = trail.isNotEmpty &&
+        origin != null &&
+        _isContinuous(trail) &&
+        touches(field, trail.first, Cell.player) &&
+        touches(field, trail.last, Cell.player);
+
     if (complete) {
-      claimPartitionedRegions(field, monster.occupiedCells());
+      claimClosedLoop(
+        field: field,
+        trail: trail,
+        origin: origin,
+        close: player,
+        monsterCells: monster.occupiedCells(),
+      );
+    } else {
+      for (final cell in trail) {
+        field.set(cell, Cell.player);
+      }
     }
+
     path.clear();
     pathOrigin = null;
     drawing = false;
-    returnedToRim = true;
     poison = null;
     if (field.isShore(player) || field.at(player) == Cell.player) {
-      // stay put; snap to nearest shore if we landed inside claimed land
       if (!field.isShore(player)) {
         player = _nearestShore(player);
       }
@@ -197,7 +211,7 @@ class World {
   }
 
   bool _monsterHitsPlayer() {
-    return _overlapsMonster(cellCenter(player));
+    return distance(cellCenter(player), monster.head) <= GameConstants.playerHitRadius;
   }
 
   bool _isContinuous(List<GridPoint> cells) {
@@ -210,19 +224,20 @@ class World {
   }
 
   int? _monsterHitsPath() {
-    for (var i = 0; i < path.length; i += 1) {
+    final last = path.length - 1;
+    for (var i = 0; i < last; i += 1) {
       if (_overlapsMonster(cellCenter(path[i]))) return i;
     }
     return null;
   }
 
   bool _overlapsMonster(math.Point<double> point) {
-    if (distance(point, monster.head) <= monster.headRadius + 0.35) {
+    if (distance(point, monster.head) <= monster.headRadius + 0.2) {
       return true;
     }
     for (var i = 0; i < monster.body.length - 1; i += 1) {
       final gap = distanceToSegment(point, monster.body[i], monster.body[i + 1]);
-      if (gap <= monster.bodyWidth * 0.55) return true;
+      if (gap <= monster.bodyWidth * 0.45) return true;
     }
     return false;
   }

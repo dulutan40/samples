@@ -14,18 +14,11 @@ class InputService {
   final HoldHook drawHold = HoldHook();
   Direction? _pointerDirection;
 
-  bool _holdArmed = true;
-
-  bool get space => keyboard.space || (drawHold.held && _holdArmed);
+  bool get space => keyboard.space || drawHold.held;
 
   Direction? get direction => _pointerDirection ?? keyboard.direction;
 
-  void clearUntilNextPress() {
-    keyboard.clearUntilNextPress();
-    if (drawHold.held) {
-      _holdArmed = false;
-    }
-  }
+  void tick() => keyboard.tick();
 
   KeyEventResult onKey(KeyEvent event) => keyboard.handle(event);
 
@@ -34,9 +27,6 @@ class InputService {
   }
 
   void setDrawHeld(bool held) {
-    if (!held) {
-      _holdArmed = true;
-    }
     drawHold.set(held);
   }
 

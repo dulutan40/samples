@@ -19,7 +19,7 @@ class TitleHero extends StatelessWidget {
           const ArcadeText('VOLFIED', size: 56, letterSpacing: 8, color: GameColors.accent),
           const SizedBox(height: 16),
           const ArcadeText(
-            'You own the rim. The computer owns the black. Hold space, cut a trail, and close a shape. Keep the snake off your line.',
+            'You own the rim. The computer owns the black. Hold space, cut a trail, and close a shape. If the snake clips the trail, outrun the poison and finish the loop.',
             align: TextAlign.center,
             weight: FontWeight.w400,
             color: GameColors.muted,

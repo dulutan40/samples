@@ -16,7 +16,10 @@ class PlayfieldView extends StatelessWidget {
     return ColoredBox(
       color: GameColors.computer,
       child: CustomPaint(
-        painter: _PlayfieldPainter(world),
+        painter: _PlayfieldPainter(
+          world,
+          MediaQuery.devicePixelRatioOf(context),
+        ),
         child: const SizedBox.expand(),
       ),
     );
@@ -24,56 +27,55 @@ class PlayfieldView extends StatelessWidget {
 }
 
 class _PlayfieldPainter extends CustomPainter {
-  _PlayfieldPainter(this.world);
+  _PlayfieldPainter(this.world, this.devicePixelRatio);
 
   final World world;
+  final double devicePixelRatio;
 
   @override
   void paint(Canvas canvas, Size size) {
     final n = world.field.size;
-    final cell = math.min(size.width, size.height) / n;
+    final board = math.min(size.width, size.height);
+    final snappedBoard = (board * devicePixelRatio).floor() / devicePixelRatio;
+    final cell = snappedBoard / n;
     final origin = Offset(
-      (size.width - cell * n) / 2,
-      (size.height - cell * n) / 2,
+      ((size.width - snappedBoard) / 2 * devicePixelRatio).round() / devicePixelRatio,
+      ((size.height - snappedBoard) / 2 * devicePixelRatio).round() / devicePixelRatio,
     );
 
-    final claimed = Paint()..color = GameColors.claimed;
-    final computer = Paint()..color = GameColors.computer;
+    final claimed = Paint()
+      ..color = GameColors.claimed
+      ..isAntiAlias = false;
+    final computer = Paint()
+      ..color = GameColors.computer
+      ..isAntiAlias = false;
+    final trailFill = Paint()
+      ..color = GameColors.trail
+      ..isAntiAlias = false;
     final edge = Paint()
       ..color = GameColors.claimedEdge
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
+      ..strokeWidth = 1
+      ..isAntiAlias = false;
 
     for (var y = 0; y < n; y += 1) {
       for (var x = 0; x < n; x += 1) {
-        final rect = Rect.fromLTWH(origin.dx + x * cell, origin.dy + y * cell, cell + 0.4, cell + 0.4);
-        canvas.drawRect(rect, world.field.cells[y][x] == Cell.player ? claimed : computer);
+        final paint = world.field.cells[y][x] == Cell.player ? claimed : computer;
+        canvas.drawRect(_cellRect(origin, cell, x, y), paint);
       }
     }
+
+    for (final point in world.path) {
+      canvas.drawRect(_cellRect(origin, cell, point.x, point.y), trailFill);
+    }
+
     canvas.drawRect(Rect.fromLTWH(origin.dx, origin.dy, cell * n, cell * n), edge);
 
-    if (world.path.isNotEmpty) {
-      final trail = Paint()
-        ..color = GameColors.trail
-        ..strokeWidth = math.max(2, cell * 0.7)
-        ..strokeCap = StrokeCap.square
-        ..style = PaintingStyle.stroke;
-      final points = [
-        for (final p in world.path)
-          Offset(origin.dx + (p.x + 0.5) * cell, origin.dy + (p.y + 0.5) * cell),
-      ];
-      final trailPath = Path()..moveTo(points.first.dx, points.first.dy);
-      for (final point in points.skip(1)) {
-        trailPath.lineTo(point.dx, point.dy);
-      }
-      canvas.drawPath(trailPath, trail);
-    }
-
-    if (world.poison != null && world.poison!.alive) {
+    if (world.poison != null && world.poison!.alive && world.path.isNotEmpty) {
       final p = world.poison!.cell;
       canvas.drawCircle(
         Offset(origin.dx + (p.x + 0.5) * cell, origin.dy + (p.y + 0.5) * cell),
-        cell * 0.7,
+        cell * 0.42,
         Paint()..color = GameColors.poison,
       );
     }
@@ -104,9 +106,22 @@ class _PlayfieldPainter extends CustomPainter {
     );
 
     canvas.drawCircle(
-      Offset(origin.dx + (world.player.x + 0.5) * cell, origin.dy + (world.player.y + 0.5) * cell),
-      cell * 0.55,
+      Offset(
+        origin.dx + (world.player.x + 0.5) * cell,
+        origin.dy + (world.player.y + 0.5) * cell,
+      ),
+      cell * 0.42,
       Paint()..color = GameColors.player,
+    );
+  }
+
+  Rect _cellRect(Offset origin, double cell, int x, int y) {
+    final pad = 0.5 / devicePixelRatio;
+    return Rect.fromLTWH(
+      origin.dx + x * cell - pad,
+      origin.dy + y * cell - pad,
+      cell + pad * 2,
+      cell + pad * 2,
     );
   }
 

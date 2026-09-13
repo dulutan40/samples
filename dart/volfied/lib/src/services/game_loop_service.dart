@@ -19,12 +19,10 @@ class GameLoopService {
 
   void _step(Duration elapsed) {
     final dt = elapsed.inMicroseconds / 1e6;
+    input.tick();
     world.setSpace(input.space);
     world.setDirection(input.direction);
     world.update(dt.clamp(0, 0.05));
-    if (world.returnedToRim) {
-      input.clearUntilNextPress();
-    }
     onTick();
   }
 }

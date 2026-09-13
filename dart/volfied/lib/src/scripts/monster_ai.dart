@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import '../game/playfield.dart';
 import '../helpers/constants.dart';
+import '../helpers/geometry.dart';
 import '../models/cell.dart';
 import '../models/grid_point.dart';
 
@@ -20,27 +21,22 @@ class Monster {
   late double headRadius;
   late double bodyWidth;
   late int bodyLength;
-  double _untilTurn = GameConstants.monsterTurnSeconds;
+  double _untilJitter = GameConstants.monsterTurnSeconds;
+  double _orbitAngle = 0;
+  double _orbitRadius = GameConstants.monsterOrbitMax;
+  double _orbitSign = 1;
 
   void reset({required bool big}) {
-    this.big = big;
-    final playArea = field.startingInner.toDouble();
-    final area = playArea *
-        (big ? GameConstants.bigAreaFraction : GameConstants.smallAreaFraction);
-    final headArea =
-        area * (big ? GameConstants.bigHeadShare : GameConstants.smallHeadShare);
-    final fullHeadRadius = math.sqrt(headArea / math.pi);
-    headRadius = fullHeadRadius * 0.5;
-    final bodyArea = area - headArea;
-    bodyWidth = math.max(0.7, fullHeadRadius * (big ? 0.55 : 0.45));
-    bodyLength = math.max(8, (bodyArea / bodyWidth).round());
-
+    _applySize(big: big);
     head = math.Point(field.size / 2, field.size / 2);
     body
       ..clear()
       ..addAll(List.generate(bodyLength, (_) => head));
-    _pickVelocity();
-    _untilTurn = GameConstants.monsterTurnSeconds;
+    velocity = const math.Point(0, 0);
+    _untilJitter = GameConstants.monsterTurnSeconds;
+    _orbitAngle = _random.nextDouble() * math.pi * 2;
+    _orbitRadius = GameConstants.monsterOrbitMax;
+    _orbitSign = _random.nextBool() ? 1 : -1;
   }
 
   GridPoint get occupiedCell {
@@ -78,44 +74,130 @@ class Monster {
     yield* seen;
   }
 
-  void update(double dt, {required bool shouldBeBig}) {
+  void update(
+    double dt, {
+    required bool shouldBeBig,
+    required math.Point<double> prey,
+    bool hunt = false,
+  }) {
     if (shouldBeBig != big) {
-      reset(big: shouldBeBig);
+      _applySize(big: shouldBeBig);
     }
 
-    _untilTurn -= dt;
-    if (_untilTurn <= 0) {
-      _pickVelocity();
-      _untilTurn = GameConstants.monsterTurnSeconds * (0.6 + _random.nextDouble());
+    final speed = hunt ? GameConstants.monsterHuntSpeed : GameConstants.monsterSpeed;
+    final minR = hunt ? GameConstants.monsterHuntOrbitMin : GameConstants.monsterOrbitMin;
+    final maxR = hunt ? GameConstants.monsterHuntOrbitMax : GameConstants.monsterOrbitMax;
+    final keepAway = hunt ? GameConstants.monsterHuntKeepAway : GameConstants.monsterKeepAway;
+    _orbitRadius = _orbitRadius.clamp(minR, maxR);
+
+    _untilJitter -= dt;
+    if (_untilJitter <= 0) {
+      if (_random.nextDouble() < 0.3) _orbitSign *= -1;
+      _orbitRadius = minR + _random.nextDouble() * (maxR - minR);
+      _untilJitter = GameConstants.monsterTurnSeconds * (0.7 + _random.nextDouble());
     }
 
-    var next = math.Point(
-      head.x + velocity.x * dt,
-      head.y + velocity.y * dt,
+    final spin = (hunt ? 1.8 : 1.15) * _orbitSign;
+    _orbitAngle += spin * dt;
+
+    final zone = _zoneCenter(prey);
+    final orbit = math.Point(
+      zone.x + math.cos(_orbitAngle) * _orbitRadius,
+      zone.y + math.sin(_orbitAngle) * _orbitRadius,
     );
 
-    if (!_isOpen(next)) {
-      _pickVelocity();
-      next = math.Point(
-        head.x + velocity.x * dt,
-        head.y + velocity.y * dt,
-      );
-      if (!_isOpen(next)) return;
+    var desired = _toward(orbit, speed);
+    final gap = distance(head, prey);
+    if (gap < keepAway) {
+      desired = _away(prey, speed);
     }
 
+    velocity = math.Point(
+      velocity.x + (desired.x - velocity.x) * GameConstants.monsterSteer,
+      velocity.y + (desired.y - velocity.y) * GameConstants.monsterSteer,
+    );
+
+    if (!_tryMove(dt)) {
+      _orbitAngle += _orbitSign * 0.7;
+      velocity = _nudge(_toward(orbit, speed), speed * 0.35);
+      _tryMove(dt);
+    }
+  }
+
+  math.Point<double> _zoneCenter(math.Point<double> prey) {
+    final mid = field.size / 2;
+    return math.Point(
+      prey.x + (mid - prey.x) * 0.18,
+      prey.y + (mid - prey.y) * 0.18,
+    );
+  }
+
+  void _applySize({required bool big}) {
+    this.big = big;
+    final playArea = field.startingInner.toDouble();
+    final area = playArea *
+        (big ? GameConstants.bigAreaFraction : GameConstants.smallAreaFraction);
+    final headArea =
+        area * (big ? GameConstants.bigHeadShare : GameConstants.smallHeadShare);
+    final fullHeadRadius = math.sqrt(headArea / math.pi);
+    headRadius = fullHeadRadius * 0.5;
+    final bodyArea = area - headArea;
+    bodyWidth = math.max(0.7, fullHeadRadius * (big ? 0.55 : 0.45));
+    bodyLength = math.max(8, (bodyArea / bodyWidth).round());
+    if (body.isEmpty) return;
+    while (body.length > bodyLength) {
+      body.removeLast();
+    }
+    while (body.length < bodyLength) {
+      body.add(body.last);
+    }
+  }
+
+  math.Point<double> _toward(math.Point<double> target, double speed) {
+    final gap = distance(head, target);
+    if (gap < 0.001) return velocity;
+    return math.Point(
+      (target.x - head.x) / gap * speed,
+      (target.y - head.y) / gap * speed,
+    );
+  }
+
+  math.Point<double> _away(math.Point<double> target, double speed) {
+    final gap = distance(head, target);
+    if (gap < 0.001) {
+      return math.Point(math.cos(_orbitAngle) * speed, math.sin(_orbitAngle) * speed);
+    }
+    return math.Point(
+      (head.x - target.x) / gap * speed,
+      (head.y - target.y) / gap * speed,
+    );
+  }
+
+  math.Point<double> _nudge(math.Point<double> base, double amount) {
+    final angle = _random.nextDouble() * math.pi * 2;
+    return math.Point(
+      base.x + math.cos(angle) * amount,
+      base.y + math.sin(angle) * amount,
+    );
+  }
+
+  bool _tryMove(double dt) {
+    final full = math.Point(head.x + velocity.x * dt, head.y + velocity.y * dt);
+    if (_commit(full)) return true;
+    final slideX = math.Point(head.x + velocity.x * dt, head.y);
+    if (_commit(slideX)) return true;
+    final slideY = math.Point(head.x, head.y + velocity.y * dt);
+    return _commit(slideY);
+  }
+
+  bool _commit(math.Point<double> next) {
+    if (!_isOpen(next)) return false;
     head = next;
     body.insert(0, head);
     while (body.length > bodyLength) {
       body.removeLast();
     }
-  }
-
-  void _pickVelocity() {
-    final angle = _random.nextDouble() * math.pi * 2;
-    velocity = math.Point(
-      math.cos(angle) * GameConstants.monsterSpeed,
-      math.sin(angle) * GameConstants.monsterSpeed,
-    );
+    return true;
   }
 
   bool _isOpen(math.Point<double> point) {

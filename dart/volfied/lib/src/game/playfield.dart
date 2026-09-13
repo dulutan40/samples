@@ -33,11 +33,17 @@ class Playfield {
 
   bool isShore(GridPoint point) {
     if (!inBounds(point) || at(point) != Cell.player) return false;
+    // Corners only touch computer land diagonally. 4-neighbors left the four
+    // rims (and later claimed coastlines) disconnected at those corners.
     const neighbors = [
       GridPoint(-1, 0),
       GridPoint(1, 0),
       GridPoint(0, -1),
       GridPoint(0, 1),
+      GridPoint(-1, -1),
+      GridPoint(-1, 1),
+      GridPoint(1, -1),
+      GridPoint(1, 1),
     ];
     for (final delta in neighbors) {
       final next = point + delta;
