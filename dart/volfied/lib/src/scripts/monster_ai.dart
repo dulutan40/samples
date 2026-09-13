@@ -29,9 +29,10 @@ class Monster {
         (big ? GameConstants.bigAreaFraction : GameConstants.smallAreaFraction);
     final headArea =
         area * (big ? GameConstants.bigHeadShare : GameConstants.smallHeadShare);
-    headRadius = math.sqrt(headArea / math.pi);
+    final fullHeadRadius = math.sqrt(headArea / math.pi);
+    headRadius = fullHeadRadius * 0.5;
     final bodyArea = area - headArea;
-    bodyWidth = math.max(0.7, headRadius * (big ? 0.55 : 0.45));
+    bodyWidth = math.max(0.7, fullHeadRadius * (big ? 0.55 : 0.45));
     bodyLength = math.max(8, (bodyArea / bodyWidth).round());
 
     head = math.Point(field.size / 2, field.size / 2);

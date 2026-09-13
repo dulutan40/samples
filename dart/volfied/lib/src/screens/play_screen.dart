@@ -48,6 +48,7 @@ class _PlayScreenState extends State<PlayScreen> {
   @override
   void dispose() {
     loop.dispose();
+    input.dispose();
     focus.dispose();
     super.dispose();
   }

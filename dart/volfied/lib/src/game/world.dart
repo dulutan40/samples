@@ -115,12 +115,16 @@ class World {
   }
 
   void _closeClaim() {
+    final complete = path.isNotEmpty &&
+        _isContinuous(path) &&
+        touches(field, path.first, Cell.player) &&
+        touches(field, path.last, Cell.player);
     for (final cell in path) {
-      if (field.at(cell) == Cell.computer) {
-        field.set(cell, Cell.player);
-      }
+      field.set(cell, Cell.player);
     }
-    claimSafeRegions(field, monster.occupiedCell);
+    if (complete) {
+      claimEnclosedRegion(field, monster.occupiedCell);
+    }
     path.clear();
     drawing = false;
     poison = null;
@@ -153,11 +157,12 @@ class World {
   }
 
   void _resolveMonsterTouch() {
+    if (!drawing) return;
     if (_monsterHitsPlayer()) {
       status = GameStatus.lost;
       return;
     }
-    if (!drawing || path.isEmpty || poison != null) return;
+    if (path.isEmpty || poison != null) return;
     final hit = _monsterHitsPath();
     if (hit != null) {
       poison = Poison(path: path, index: hit);
@@ -165,8 +170,16 @@ class World {
   }
 
   bool _monsterHitsPlayer() {
-    if (drawing) return _overlapsMonster(cellCenter(player));
     return _overlapsMonster(cellCenter(player));
+  }
+
+  bool _isContinuous(List<GridPoint> cells) {
+    for (var i = 1; i < cells.length; i += 1) {
+      final gap =
+          (cells[i].x - cells[i - 1].x).abs() + (cells[i].y - cells[i - 1].y).abs();
+      if (gap != 1) return false;
+    }
+    return true;
   }
 
   int? _monsterHitsPath() {
