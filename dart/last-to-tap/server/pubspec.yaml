@@ -1,0 +1,10 @@
+name: last_to_tap_server
+description: Authoritative WebSocket host for Last to Tap rooms.
+publish_to: none
+version: 0.1.0
+environment:
+  sdk: ^3.11.0
+dependencies:
+  shelf: ^1.4.2
+  shelf_web_socket: ^2.0.1
+  web_socket_channel: ^3.0.2

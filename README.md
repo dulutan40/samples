@@ -10,6 +10,7 @@ Projects in this repository are grouped by language, then by project name:
 | --- | --- | --- |
 | `dart` | [`pong`](dart/pong) | Flutter: arcade Pong with CPU, online play, power-ups, and progression |
 | `dart` | [`monster-hunt`](dart/monster-hunt) | Flutter: claim the field on desktop, mobile, or web; cut trails, dodge poison |
+| `dart` | [`last-to-tap`](dart/last-to-tap) | Flutter: multiplayer nerve game — last tap before a hidden cutoff wins |
 | `javascript` | [`guess-the-number`](javascript/guess-the-number) | React Native: higher/lower number game, one or two players |
 | `javascript` | [`crack-the-code`](javascript/crack-the-code) | React Native: Mastermind with digits, plus/minus or color marks |
 | `rust` | [`snake`](rust/snake) | Desktop: classic grid snake (Rust + macroquad) |
