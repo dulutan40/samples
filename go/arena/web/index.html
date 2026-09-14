@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Arena</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div id="shell">
+    <header>
+      <h1>ARENA</h1>
+      <p>Authoritative Go server · WASD move · mouse aim · click or space to fire</p>
+    </header>
+    <div id="lobby">
+      <input id="name" maxlength="16" placeholder="callsign" value="Pilot" />
+      <button id="join">Enter arena</button>
+    </div>
+    <div id="hud" hidden>
+      <span id="status">connecting…</span>
+      <span id="scoreboard"></span>
+    </div>
+    <canvas id="c" width="900" height="640" hidden></canvas>
+  </div>
+  <script src="/game.js"></script>
+</body>
+</html>
