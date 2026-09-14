@@ -1,0 +1,10 @@
+[package]
+name = "snake"
+version = "0.1.0"
+edition = "2021"
+description = "Classic grid snake — eat, grow, don't bite yourself."
+license = "MIT"
+
+[dependencies]
+macroquad = "0.4"
+rand = "0.8"

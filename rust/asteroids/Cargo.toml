@@ -1,0 +1,10 @@
+[package]
+name = "asteroids"
+version = "0.1.0"
+edition = "2021"
+description = "Arcade asteroids — thrust, shoot, and clear the field."
+license = "MIT"
+
+[dependencies]
+macroquad = "0.4"
+rand = "0.8"
