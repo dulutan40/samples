@@ -1,0 +1,9 @@
+[package]
+name = "hungry_emoji"
+version = "0.1.0"
+edition = "2021"
+description = "Classic Pac-Man vibes — a sideways hungry emoji clears the maze."
+license = "MIT"
+
+[dependencies]
+macroquad = "0.4"
