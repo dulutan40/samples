@@ -10,6 +10,7 @@
 
   let ws = null;
   let you = null;
+  let joined = false;
   let state = { players: [], bullets: [], width: 900, height: 640 };
   const keys = new Set();
   let aim = { x: 450, y: 320 };
@@ -20,27 +21,72 @@
     return `${proto}://${location.host}/ws`;
   }
 
+  function setPlayingUI() {
+    lobby.hidden = true;
+    hud.hidden = false;
+    canvas.hidden = false;
+  }
+
+  function setLobbyUI(message) {
+    statusEl.textContent = message;
+    lobby.hidden = false;
+    canvas.hidden = true;
+    joined = false;
+    you = null;
+  }
+
   function join() {
-    if (ws && ws.readyState <= 1) ws.close();
-    ws = new WebSocket(wsURL());
+    if (ws) {
+      ws.onclose = null;
+      try { ws.close(); } catch (_) {}
+      ws = null;
+    }
+
     statusEl.textContent = "connecting…";
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: "join", name: nameInput.value.trim() || "Pilot" }));
-      lobby.hidden = true;
-      hud.hidden = false;
-      canvas.hidden = false;
-      statusEl.textContent = "in arena";
+    const socket = new WebSocket(wsURL());
+    ws = socket;
+
+    socket.onopen = () => {
+      socket.send(JSON.stringify({
+        type: "join",
+        name: nameInput.value.trim() || "Pilot",
+      }));
+      setPlayingUI();
+      statusEl.textContent = "joining…";
     };
-    ws.onmessage = (ev) => {
-      const msg = JSON.parse(ev.data);
-      if (msg.type === "welcome") you = msg.you;
-      if (msg.type === "state") state = msg.state;
-      if (msg.type === "error") statusEl.textContent = msg.message;
+
+    socket.onmessage = (ev) => {
+      let msg;
+      try {
+        msg = JSON.parse(ev.data);
+      } catch (_) {
+        return;
+      }
+      if (msg.type === "welcome") {
+        you = msg.you;
+        joined = true;
+        statusEl.textContent = "in arena — WASD move, mouse aim, click/space fire";
+      }
+      if (msg.type === "state" && msg.state) {
+        state = msg.state;
+        if (!joined) {
+          joined = true;
+          statusEl.textContent = "in arena";
+        }
+      }
+      if (msg.type === "error") {
+        statusEl.textContent = msg.message || "error";
+      }
     };
-    ws.onclose = () => {
-      statusEl.textContent = "disconnected";
-      lobby.hidden = false;
-      canvas.hidden = true;
+
+    socket.onerror = () => {
+      statusEl.textContent = "connection error";
+    };
+
+    socket.onclose = () => {
+      if (ws === socket) {
+        setLobbyUI("disconnected — enter again");
+      }
     };
   }
 
@@ -71,7 +117,7 @@
   window.addEventListener("mouseup", () => { fire = false; });
 
   setInterval(() => {
-    if (!ws || ws.readyState !== WebSocket.OPEN || !you) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN || !joined) return;
     ws.send(JSON.stringify({
       type: "input",
       input: {
@@ -138,7 +184,7 @@
       ctx.fillStyle = "#3ce0c8";
       ctx.fillRect(p.x - 16, p.y + 18, 32 * (p.hp / 100), 4);
 
-      if (p.id === you) {
+      if (you && p.id === you) {
         ctx.strokeStyle = "#ffffff";
         ctx.lineWidth = 1.5;
         ctx.beginPath();
@@ -146,7 +192,7 @@
         ctx.stroke();
       }
     }
-    boardEl.textContent = rows.sort().join(" · ");
+    boardEl.textContent = rows.sort().join(" · ") || "waiting for pilots…";
     requestAnimationFrame(draw);
   }
   draw();

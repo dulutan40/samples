@@ -1,6 +1,8 @@
 package server
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -22,16 +24,17 @@ type inbound struct {
 }
 
 type outbound struct {
-	Type    string        `json:"type"`
-	You     string        `json:"you,omitempty"`
-	Message string        `json:"message,omitempty"`
-	State   game.Snapshot `json:"state,omitempty"`
+	Type    string         `json:"type"`
+	You     string         `json:"you,omitempty"`
+	Message string         `json:"message,omitempty"`
+	State   *game.Snapshot `json:"state,omitempty"`
 }
 
 type client struct {
-	id   string
-	conn *websocket.Conn
-	send chan []byte
+	id     string
+	conn   *websocket.Conn
+	send   chan []byte
+	joined bool
 }
 
 type Hub struct {
@@ -59,16 +62,14 @@ func (h *Hub) Run() {
 func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
+		log.Printf("upgrade: %v", err)
 		return
 	}
-	id := r.URL.Query().Get("id")
-	if id == "" {
-		id = randomID()
-	}
+	id := newID()
 	c := &client{
 		id:   id,
 		conn: conn,
-		send: make(chan []byte, 16),
+		send: make(chan []byte, 64),
 	}
 
 	h.mu.Lock()
@@ -89,9 +90,10 @@ func (h *Hub) readPump(c *client) {
 		_ = c.conn.Close()
 	}()
 
-	_ = c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	c.conn.SetReadLimit(4096)
+	_ = c.conn.SetReadDeadline(time.Now().Add(90 * time.Second))
 	c.conn.SetPongHandler(func(string) error {
-		_ = c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		_ = c.conn.SetReadDeadline(time.Now().Add(90 * time.Second))
 		return nil
 	})
 
@@ -100,25 +102,34 @@ func (h *Hub) readPump(c *client) {
 		if err != nil {
 			return
 		}
+		_ = c.conn.SetReadDeadline(time.Now().Add(90 * time.Second))
+
 		var msg inbound
 		if err := json.Unmarshal(data, &msg); err != nil {
 			continue
 		}
 		switch msg.Type {
 		case "join":
+			if c.joined {
+				continue
+			}
 			if _, ok := h.world.AddPlayer(c.id, msg.Name); !ok {
 				h.send(c, outbound{Type: "error", Message: "arena full"})
 				return
 			}
+			c.joined = true
 			h.send(c, outbound{Type: "welcome", You: c.id})
+			log.Printf("player joined id=%s name=%q players=%d", c.id, msg.Name, h.world.PlayerCount())
 		case "input":
-			h.world.SetInput(c.id, msg.Input)
+			if c.joined {
+				h.world.SetInput(c.id, msg.Input)
+			}
 		}
 	}
 }
 
 func (c *client) writePump() {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(20 * time.Second)
 	defer func() {
 		ticker.Stop()
 		_ = c.conn.Close()
@@ -126,7 +137,7 @@ func (c *client) writePump() {
 	for {
 		select {
 		case msg, ok := <-c.send:
-			_ = c.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+			_ = c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			if !ok {
 				_ = c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
@@ -135,7 +146,7 @@ func (c *client) writePump() {
 				return
 			}
 		case <-ticker.C:
-			_ = c.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+			_ = c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}
@@ -144,9 +155,10 @@ func (c *client) writePump() {
 }
 
 func (h *Hub) broadcastState() {
+	snap := h.world.Snapshot()
 	payload, err := json.Marshal(outbound{
 		Type:  "state",
-		State: h.world.Snapshot(),
+		State: &snap,
 	})
 	if err != nil {
 		return
@@ -154,10 +166,14 @@ func (h *Hub) broadcastState() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for _, c := range h.clients {
+		if !c.joined {
+			continue
+		}
 		select {
 		case c.send <- payload:
 		default:
-			log.Printf("dropping slow client %s", c.id)
+			// Prefer dropping a frame over killing the socket.
+			log.Printf("slow client frame drop id=%s", c.id)
 		}
 	}
 }
@@ -169,21 +185,15 @@ func (h *Hub) send(c *client, msg outbound) {
 	}
 	select {
 	case c.send <- data:
-	default:
+	case <-time.After(2 * time.Second):
+		log.Printf("failed to queue message type=%s id=%s", msg.Type, c.id)
 	}
 }
 
-func randomID() string {
-	return time.Now().Format("150405.000") + "-" + confusables(4)
-}
-
-func confusables(n int) string {
-	const alphabet = "abcdefghjkmnpqrstuvwxyz23456789"
-	b := make([]byte, n)
-	now := time.Now().UnixNano()
-	for i := 0; i < n; i++ {
-		b[i] = alphabet[(now+int64(i*17))%int64(len(alphabet))]
-		now = now*1103515245 + 12345
+func newID() string {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return hex.EncodeToString([]byte(time.Now().Format("150405.000000000")))
 	}
-	return string(b)
+	return hex.EncodeToString(b[:])
 }

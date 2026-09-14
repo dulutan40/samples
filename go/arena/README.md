@@ -9,12 +9,13 @@ cd go/arena
 go run .
 ```
 
-Open [http://localhost:3470](http://localhost:3470) in two browser tabs (or two machines on your LAN).
+Open [http://127.0.0.1:3470](http://127.0.0.1:3470) in two browser tabs (or two machines on your LAN with `-addr 0.0.0.0:3470`).
 
 ```bash
 go test ./...
 go build -o bin/arena .
-./bin/arena -addr :3470
+./bin/arena
+# or: ./bin/arena -addr 0.0.0.0:3470
 ```
 
 ## Controls

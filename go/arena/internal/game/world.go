@@ -31,25 +31,29 @@ type Input struct {
 }
 
 type Player struct {
-	ID        string  `json:"id"`
-	Name      string  `json:"name"`
-	X, Y      float64 `json:"x"`
-	AimX, AimY float64 `json:"aimX"`
-	HP        int     `json:"hp"`
-	Score     int     `json:"score"`
-	Color     string  `json:"color"`
-	Alive     bool    `json:"alive"`
-	input     Input
+	ID     string  `json:"id"`
+	Name   string  `json:"name"`
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+	AimX   float64 `json:"aimX"`
+	AimY   float64 `json:"aimY"`
+	HP     int     `json:"hp"`
+	Score  int     `json:"score"`
+	Color  string  `json:"color"`
+	Alive  bool    `json:"alive"`
+	input  Input
 	cooldown  time.Time
 	respawnAt time.Time
 }
 
 type Bullet struct {
-	ID       int     `json:"id"`
-	Owner    string  `json:"owner"`
-	X, Y     float64 `json:"x"`
-	VX, VY   float64 `json:"vx"`
-	TTL      float64 `json:"-"`
+	ID     int     `json:"id"`
+	Owner  string  `json:"owner"`
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+	VX     float64 `json:"vx"`
+	VY     float64 `json:"vy"`
+	TTL    float64 `json:"-"`
 }
 
 type Snapshot struct {
@@ -239,6 +243,9 @@ func (w *World) Snapshot() Snapshot {
 		players = append(players, cp)
 	}
 	bullets := append([]Bullet(nil), w.bullets...)
+	if bullets == nil {
+		bullets = []Bullet{}
+	}
 	return Snapshot{
 		Players: players,
 		Bullets: bullets,

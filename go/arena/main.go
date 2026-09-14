@@ -15,7 +15,7 @@ import (
 var webFS embed.FS
 
 func main() {
-	addr := flag.String("addr", ":3470", "http listen address")
+	addr := flag.String("addr", "127.0.0.1:3470", "http listen address")
 	flag.Parse()
 
 	world := game.NewWorld()
@@ -31,7 +31,7 @@ func main() {
 	mux.Handle("/", http.FileServer(http.FS(static)))
 	mux.HandleFunc("/ws", hub.ServeWS)
 
-	log.Printf("arena listening on http://localhost%s", *addr)
+	log.Printf("arena listening on http://%s", *addr)
 	log.Printf("open that URL in two browser tabs to duel")
 	if err := http.ListenAndServe(*addr, mux); err != nil {
 		log.Fatal(err)
