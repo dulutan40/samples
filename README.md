@@ -14,5 +14,5 @@ Projects in this repository are grouped by language, then by project name:
 | `javascript` | [`crack-the-code`](javascript/crack-the-code) | React Native: Mastermind with digits, plus/minus or color marks |
 | `rust` | [`snake`](rust/snake) | Desktop: classic grid snake (Rust + macroquad) |
 | `rust` | [`asteroids`](rust/asteroids) | Desktop: thrust, shoot, and split rocks (Rust + macroquad) |
-| `rust` | [`hungry-emoji`](rust/hungry-emoji) | Desktop: Pac-Man tribute with a sideways hungry emoji |
+| `rust` | [`hungry-emoji`](rust/hungry-emoji) | Desktop: Pac-Man tribute — hungry emoji, five mazes |
 | `go` | [`arena`](go/arena) | Multiplayer duel: authoritative Go server + browser client |

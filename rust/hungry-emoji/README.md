@@ -1,6 +1,6 @@
 # Hungry Emoji
 
-A compact **Pac-Man** tribute in Rust + [macroquad](https://github.com/not-fl3/macroquad). You play a sideways hungry-face emoji: yellow cheek, chomping wedge mouth, one emoji eye. Clear pellets, gulp power dots, and stay away from the ghosts — unless they're blue.
+A compact **Pac-Man** tribute in Rust + [macroquad](https://github.com/not-fl3/macroquad). You play a sideways hungry-face emoji: yellow cheek, chomping wedge mouth, one emoji eye. Clear pellets across **five mazes**, gulp power dots, and stay away from the ghosts — unless they're blue.
 
 ## Run
 
@@ -14,16 +14,20 @@ cargo run --release
 | Key | Action |
 | --- | --- |
 | Arrows / WASD | Steer |
-| Space / Enter | Start or retry |
+| Space / Enter | Start, next level, or retry |
 | Esc | Quit |
+
+## Levels
+
+Five looped mazes with rising ghost speed. Clear every pellet to advance; beat all five to win.
 
 ## Layout
 
 ```text
 src/
   main.rs     drawing (including the hungry emoji)
-  game.rs     movement, ghosts, scoring, lives
-  maze.rs     maze data + walkability
+  game.rs     movement, ghosts, scoring, lives, levels
+  maze.rs     five mazes + walkability / pathfinding
 ```
 
 ## Why Rust

@@ -6,7 +6,7 @@ use macroquad::prelude::*;
 use maze::{Cell, TILE};
 
 fn window_conf() -> Conf {
-    let maze = maze::Maze::parse();
+    let maze = maze::Maze::parse_level(0);
     let (w, h) = maze.pixel_size();
     Conf {
         window_title: "Hungry Emoji".to_owned(),
@@ -26,9 +26,11 @@ async fn main() {
             break;
         }
         if is_key_pressed(KeyCode::Space) || is_key_pressed(KeyCode::Enter) {
-            if game.phase != Phase::Playing {
-                game = Game::new();
-                game.phase = Phase::Playing;
+            match game.phase {
+                Phase::Ready => game.begin(),
+                Phase::LevelClear => game.advance_after_clear(),
+                Phase::Won | Phase::Lost => game.retry(),
+                Phase::Playing => {}
             }
         }
 
@@ -62,10 +64,16 @@ fn draw_hud(game: &Game) {
     let ink = Color::from_rgba(232, 237, 247, 255);
     draw_text("HUNGRY EMOJI", 12.0, 28.0, 26.0, accent);
     draw_text(
-        &format!("SCORE {}   LIVES {}", game.score, game.lives),
-        220.0,
+        &format!(
+            "LVL {}/{}   SCORE {}   LIVES {}",
+            game.level + 1,
+            maze::LEVEL_COUNT,
+            game.score,
+            game.lives
+        ),
+        200.0,
         28.0,
-        22.0,
+        20.0,
         ink,
     );
 }
@@ -73,14 +81,37 @@ fn draw_hud(game: &Game) {
 fn draw_banner(game: &Game) {
     let muted = Color::from_rgba(139, 147, 167, 255);
     let ink = Color::from_rgba(232, 237, 247, 255);
-    let msg = match game.phase {
-        Phase::Ready => Some(("SPACE to start", muted)),
-        Phase::Won => Some(("MAZE CLEARED — SPACE for another snack", ink)),
-        Phase::Lost => Some(("SO FULL… OF DEFEAT — SPACE to retry", ink)),
-        Phase::Playing => None,
-    };
-    if let Some((text, color)) = msg {
-        draw_text(text, 12.0, 56.0, 18.0, color);
+    match game.phase {
+        Phase::Ready => {
+            draw_text(
+                "SPACE to start — five mazes, one hungry emoji",
+                12.0,
+                56.0,
+                18.0,
+                muted,
+            );
+        }
+        Phase::LevelClear => {
+            let text = format!(
+                "LEVEL {} CLEAR — SPACE for level {}",
+                game.level + 1,
+                game.level + 2
+            );
+            draw_text(&text, 12.0, 56.0, 18.0, ink);
+        }
+        Phase::Won => {
+            draw_text(
+                "ALL FIVE MAZES CLEARED — SPACE to feast again",
+                12.0,
+                56.0,
+                18.0,
+                ink,
+            );
+        }
+        Phase::Lost => {
+            draw_text("SO FULL… OF DEFEAT — SPACE to retry", 12.0, 56.0, 18.0, ink);
+        }
+        Phase::Playing => {}
     }
 }
 
@@ -126,7 +157,6 @@ fn draw_hungry_emoji(game: &Game) {
     let cy = origin_y + game.player.y;
     let r = TILE * 0.42;
 
-    // Mouth opens/closes — Pac-Man wedge + hungry sideways emoji.
     let chomp = (game.chomp.sin().abs() * 0.55 + 0.18).clamp(0.12, 0.75);
     let facing = game.player.dir.angle();
 
@@ -135,7 +165,6 @@ fn draw_hungry_emoji(game: &Game) {
 
     draw_circle(cx, cy, r, face);
 
-    // Wedge mouth cut toward facing direction.
     let a0 = facing - chomp;
     let a1 = facing + chomp;
     draw_triangle(
@@ -145,27 +174,33 @@ fn draw_hungry_emoji(game: &Game) {
         mouth_void,
     );
 
-    // Sideways emoji eye (upper side relative to facing).
-    let eye_ang = facing - 0.95;
-    let ex = cx + eye_ang.cos() * r * 0.35;
-    let ey = cy + eye_ang.sin() * r * 0.35;
-    draw_circle(ex, ey, r * 0.18, WHITE);
+    // Eye sits on the top of the face for left/right (emoji orientation).
+    let (ex, ey) = match game.player.dir {
+        Dir::Left | Dir::Right => (cx + if game.player.dir == Dir::Left { -r * 0.12 } else { r * 0.12 }, cy - r * 0.42),
+        Dir::Up => (cx + r * 0.22, cy - r * 0.12),
+        Dir::Down => (cx + r * 0.22, cy + r * 0.05),
+    };
+    draw_circle(ex, ey, r * 0.17, WHITE);
+    let pupil_dx = match game.player.dir {
+        Dir::Left => -r * 0.04,
+        Dir::Right => r * 0.04,
+        Dir::Up => 0.0,
+        Dir::Down => 0.0,
+    };
     draw_circle(
-        ex + facing.cos() * r * 0.05,
-        ey + facing.sin() * r * 0.05,
+        ex + pupil_dx,
+        ey,
         r * 0.08,
         Color::from_rgba(40, 40, 50, 255),
     );
 
-    // Soft blush — reads more "emoji" than arcade.
     let blush = Color::from_rgba(255, 140, 150, 90);
-    let b_ang = facing + 1.1;
-    draw_circle(
-        cx + b_ang.cos() * r * 0.45,
-        cy + b_ang.sin() * r * 0.45,
-        r * 0.14,
-        blush,
-    );
+    let (bx, by) = match game.player.dir {
+        Dir::Left => (cx - r * 0.42, cy + r * 0.2),
+        Dir::Right => (cx + r * 0.42, cy + r * 0.2),
+        _ => (cx - r * 0.4, cy + r * 0.25),
+    };
+    draw_circle(bx, by, r * 0.13, blush);
 }
 
 fn draw_ghost(ghost: &game::Ghost) {
@@ -178,16 +213,21 @@ fn draw_ghost(ghost: &game::Ghost) {
         GhostMode::Chase => Color::from_rgba(ghost.color[0], ghost.color[1], ghost.color[2], 255),
     };
     let r = TILE * 0.38;
+    if ghost.mode == GhostMode::Eaten {
+        draw_circle(cx - 4.0, cy - 2.0, 3.5, WHITE);
+        draw_circle(cx + 4.0, cy - 2.0, 3.5, WHITE);
+        draw_circle(cx - 3.0, cy - 2.0, 1.5, BLACK);
+        draw_circle(cx + 5.0, cy - 2.0, 1.5, BLACK);
+        return;
+    }
     draw_circle(cx, cy - 2.0, r, body);
     draw_rectangle(cx - r, cy - 2.0, r * 2.0, r + 4.0, body);
     for i in 0..3 {
         let fx = cx - r + i as f32 * (r * 2.0 / 3.0) + r / 3.0;
         draw_circle(fx, cy + r + 1.0, r / 3.0, body);
     }
-    if ghost.mode != GhostMode::Eaten {
-        draw_circle(cx - 4.0, cy - 4.0, 3.5, WHITE);
-        draw_circle(cx + 4.0, cy - 4.0, 3.5, WHITE);
-        draw_circle(cx - 3.0, cy - 4.0, 1.6, BLACK);
-        draw_circle(cx + 5.0, cy - 4.0, 1.6, BLACK);
-    }
+    draw_circle(cx - 4.0, cy - 4.0, 3.5, WHITE);
+    draw_circle(cx + 4.0, cy - 4.0, 3.5, WHITE);
+    draw_circle(cx - 3.0, cy - 4.0, 1.6, BLACK);
+    draw_circle(cx + 5.0, cy - 4.0, 1.6, BLACK);
 }
