@@ -1,6 +1,6 @@
 # Volfied
 
-Flutter game for **iOS, Android, macOS, and web**. Claim the black field by cutting orthogonal trails. A giant-headed snake lives in the remaining dark and will poison an open path.
+Flutter game for **iOS, Android, macOS, Windows, Linux, and web**. Claim the black field by cutting orthogonal trails. A giant-headed snake lives in the remaining dark and will poison an open path.
 
 You start at **0%** (a one-cell rim). A clear run can reach about **99.9%**. This build treats **80%** as a stage clear so a first loop is finishable.
 
@@ -11,13 +11,13 @@ You start at **0%** (a one-cell rim). A clear run can reach about **99.9%**. Thi
 - Close the trail on your own land to keep the partitioned region that does **not** contain the monster. Shapes are orthogonal: rectangles or even-sided polygons.
 - If the monster touches you, you die.
 - If it touches your open trail, poison races along the line toward you. Reach safety first and the poison dies. If it reaches you first, you die.
-- The beast is **giant** most of the time (about 1/20 of the starting field, head about 1/3 of its body). After you claim enough, it shrinks (about 1/100 of the field, smaller head).
+- The beast charges in **10-second** cycles, reels in its tail, rests briefly, then resizes for the next patrol. Large-head bursts shrink over time until only the tiny head remains.
 
 On a phone, use the on-screen pad and hold **HOLD SPACE**.
 
 ## Layout
 
-Platform folders (`ios`, `android`, `macos`, `web`) stay platform-specific.
+Platform folders (`ios`, `android`, `macos`, `windows`, `linux`, `web`) stay platform-specific.
 
 ```text
 assets/                 texts, images, styles, scripts, videos, hooks, fonts
@@ -40,11 +40,35 @@ lib/src/
 
 Dart has to compile from `lib/`. That is why `src` lives at `lib/src`. Static files stay under `assets/`.
 
-## Run
+## Run (dev)
 
 ```bash
 cd dart/volfied
-flutter run -d chrome
-flutter run -d macos
-flutter run
+flutter run -d macos      # native desktop window (recommended on this Mac)
+flutter run -d chrome    # browser
+flutter run -d windows   # on Windows
+flutter run -d linux     # on Linux
+flutter run              # picks a connected device
 ```
+
+## Desktop app (standalone)
+
+Build a real desktop binary you can open outside Flutter:
+
+```bash
+# macOS → Volfied.app
+flutter build macos --release
+open build/macos/Build/Products/Release/Volfied.app
+
+# Windows → Volfied.exe (run on a Windows machine / CI)
+flutter build windows --release
+
+# Linux → executable (run on Linux)
+flutter build linux --release
+```
+
+On this Mac, after a release build, the app is:
+
+`build/macos/Build/Products/Release/Volfied.app`
+
+You can drag that into Applications or run it with double-click / `open`.
