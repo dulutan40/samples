@@ -11,15 +11,23 @@ class OnlineSession extends ChangeNotifier {
 
   WebSocketChannel? _channel;
   StreamSubscription? _sub;
+  Timer? _cooldownTimer;
   String? playerId;
   String? room;
   bool isHost = false;
   String phase = 'lobby';
   String? winnerId;
+  String? lastTapPlayerId;
   String? error;
   bool connected = false;
   Map<String, dynamic> you = {};
   List<Map<String, dynamic>> players = [];
+
+  /// Absolute local time when your tap cooldown ends (null if idle).
+  DateTime? cooldownUntil;
+
+  bool get onCooldown =>
+      cooldownUntil != null && DateTime.now().isBefore(cooldownUntil!);
 
   Future<void> create({required String name}) async {
     await _connect();
@@ -35,16 +43,53 @@ class OnlineSession extends ChangeNotifier {
 
   void again() => _send({'type': 'again'});
 
-  void tap() => _send({'type': 'tap'});
+  void tap() {
+    // Optimistic 1s lock so the pad re-enables even if no further WS states arrive.
+    cooldownUntil = DateTime.now().add(const Duration(seconds: 1));
+    _armCooldownTimer();
+    notifyListeners();
+    _send({'type': 'tap'});
+  }
+
+  void rename(String name) {
+    error = null;
+    _send({'type': 'rename', 'name': name});
+  }
 
   Future<void> _connect() async {
     await disposeSocket();
     error = null;
     final uri = Uri.parse(serverUrl);
-    _channel = WebSocketChannel.connect(uri);
+    final channel = WebSocketChannel.connect(uri);
+    _channel = channel;
+
+    // Wait until the socket is actually up (or fail fast with a clear error).
+    try {
+      await channel.ready.timeout(const Duration(seconds: 4));
+    } on TimeoutException {
+      await disposeSocket();
+      throw Exception(
+        'Timed out connecting to $serverUrl. Is the Last to Tap server running?\n'
+        'cd dart/last-to-tap/server && dart run bin/server.dart',
+      );
+    } catch (e) {
+      await disposeSocket();
+      final msg = e.toString();
+      if (msg.contains('Connection refused') ||
+          msg.contains('Failed to connect') ||
+          msg.contains('SocketException')) {
+        throw Exception(
+          'Cannot reach $serverUrl (connection refused).\n'
+          'Start the server first:\n'
+          'cd dart/last-to-tap/server && dart run bin/server.dart',
+        );
+      }
+      throw Exception('WebSocket failed: $msg');
+    }
+
     connected = true;
     notifyListeners();
-    _sub = _channel!.stream.listen(
+    _sub = channel.stream.listen(
       _onMessage,
       onDone: () {
         connected = false;
@@ -66,19 +111,58 @@ class OnlineSession extends ChangeNotifier {
         playerId = msg['playerId'] as String?;
         room = msg['room'] as String?;
         isHost = msg['isHost'] == true;
+        error = null;
       case 'state':
+        error = null;
         phase = msg['phase'] as String? ?? phase;
         room = msg['room'] as String? ?? room;
         winnerId = msg['winnerId'] as String?;
+        lastTapPlayerId = msg['lastTapPlayerId'] as String?;
         you = Map<String, dynamic>.from(msg['you'] as Map? ?? {});
         isHost = you['isHost'] == true;
         players = (msg['players'] as List? ?? [])
             .map((e) => Map<String, dynamic>.from(e as Map))
             .toList();
+        _syncCooldownFromState();
       case 'error':
         error = msg['message'] as String? ?? 'Error';
     }
     notifyListeners();
+  }
+
+  void _syncCooldownFromState() {
+    final remaining = (you['cooldownRemainingMs'] as num?)?.toInt() ?? 0;
+    if (remaining > 0) {
+      final serverUntil = DateTime.now().add(Duration(milliseconds: remaining));
+      // Keep the later of optimistic local lock and server remaining.
+      if (cooldownUntil == null || serverUntil.isAfter(cooldownUntil!)) {
+        cooldownUntil = serverUntil;
+      }
+      _armCooldownTimer();
+    } else if (you['onCooldown'] != true) {
+      // Only clear if our optimistic timer already elapsed.
+      if (cooldownUntil != null && !DateTime.now().isBefore(cooldownUntil!)) {
+        cooldownUntil = null;
+        _cooldownTimer?.cancel();
+        _cooldownTimer = null;
+      }
+    }
+  }
+
+  void _armCooldownTimer() {
+    _cooldownTimer?.cancel();
+    final until = cooldownUntil;
+    if (until == null) return;
+    final wait = until.difference(DateTime.now());
+    if (wait <= Duration.zero) {
+      cooldownUntil = null;
+      notifyListeners();
+      return;
+    }
+    _cooldownTimer = Timer(wait + const Duration(milliseconds: 16), () {
+      cooldownUntil = null;
+      notifyListeners();
+    });
   }
 
   void _send(Map<String, Object?> msg) {
@@ -86,6 +170,8 @@ class OnlineSession extends ChangeNotifier {
   }
 
   Future<void> disposeSocket() async {
+    _cooldownTimer?.cancel();
+    _cooldownTimer = null;
     await _sub?.cancel();
     _sub = null;
     await _channel?.sink.close();

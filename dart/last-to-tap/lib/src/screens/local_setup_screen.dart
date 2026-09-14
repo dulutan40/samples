@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../game/local_engine.dart';
+import '../game/player_names.dart';
 import '../theme/ltt_theme.dart';
 import '../widgets/tap_pad.dart';
 
@@ -15,11 +16,15 @@ class LocalSetupScreen extends StatefulWidget {
 class _LocalSetupScreenState extends State<LocalSetupScreen> {
   int _count = 4;
   late List<TextEditingController> _names;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _names = List.generate(8, (i) => TextEditingController(text: 'P${i + 1}'));
+    final defaults = uniqueRandomPlayerNames(8);
+    _names = [
+      for (final name in defaults) TextEditingController(text: name),
+    ];
   }
 
   @override
@@ -28,6 +33,20 @@ class _LocalSetupScreenState extends State<LocalSetupScreen> {
       c.dispose();
     }
     super.dispose();
+  }
+
+  List<String> _currentNames() =>
+      List.generate(_count, (i) => normalizePlayerName(_names[i].text));
+
+  String? _validate() {
+    final names = _currentNames();
+    for (var i = 0; i < names.length; i++) {
+      if (names[i].isEmpty) return 'Every player needs a name';
+      if (isPlayerNameTaken(names[i], names, exceptIndex: i)) {
+        return 'Name "${names[i]}" is already used';
+      }
+    }
+    return null;
   }
 
   @override
@@ -48,12 +67,16 @@ class _LocalSetupScreenState extends State<LocalSetupScreen> {
             divisions: 6,
             activeColor: LttColors.coral,
             label: '$_count',
-            onChanged: (v) => setState(() => _count = v.round()),
+            onChanged: (v) => setState(() {
+              _count = v.round();
+              _error = _validate();
+            }),
           ),
           for (var i = 0; i < _count; i++) ...[
             const SizedBox(height: 8),
             TextField(
               controller: _names[i],
+              onChanged: (_) => setState(() => _error = _validate()),
               decoration: InputDecoration(
                 labelText: 'Player ${i + 1}',
                 filled: true,
@@ -62,16 +85,21 @@ class _LocalSetupScreenState extends State<LocalSetupScreen> {
               ),
             ),
           ],
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Text(_error!, style: const TextStyle(color: LttColors.coral)),
+          ],
           const SizedBox(height: 24),
           FilledButton(
             onPressed: () {
-              final names =
-                  List.generate(_count, (i) => _names[i].text.trim()).map((n) {
-                return n.isEmpty ? 'Player' : n;
-              }).toList();
+              final err = _validate();
+              if (err != null) {
+                setState(() => _error = err);
+                return;
+              }
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => LocalPlayScreen(names: names),
+                  builder: (_) => LocalPlayScreen(names: _currentNames()),
                 ),
               );
             },
@@ -173,23 +201,55 @@ class _LocalPlayScreenState extends State<LocalPlayScreen> {
                 final cooling = engine.phase == LocalPhase.playing &&
                     engine.onCooldown(i);
                 final tapped = engine.lastTap[i] != null;
+                final isLast = engine.phase == LocalPhase.playing &&
+                    engine.latestTapIndex == i;
                 return DecoratedBox(
                   decoration: BoxDecoration(
                     color: LttColors.panel,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: tapped
-                          ? LttColors.coral.withValues(alpha: 0.7)
-                          : LttColors.stroke,
+                      color: isLast
+                          ? LttColors.mint.withValues(alpha: 0.85)
+                          : tapped
+                              ? LttColors.coral.withValues(alpha: 0.7)
+                              : LttColors.stroke,
                     ),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(10),
                     child: Column(
                       children: [
-                        Text(
-                          widget.names[i],
-                          style: GoogleFonts.bebasNeue(fontSize: 22),
+                        Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(
+                                text: widget.names[i],
+                                style: GoogleFonts.bebasNeue(
+                                  fontSize: 22,
+                                  color: LttColors.cream,
+                                ),
+                              ),
+                              if (isLast)
+                                TextSpan(
+                                  text: ' · last tapped',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: LttColors.mint,
+                                  ),
+                                )
+                              else if (tapped &&
+                                  engine.phase == LocalPhase.playing)
+                                TextSpan(
+                                  text: ' · tapped',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 12,
+                                    color: LttColors.muted,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          textAlign: TextAlign.center,
                         ),
                         Expanded(
                           child: TapPad(

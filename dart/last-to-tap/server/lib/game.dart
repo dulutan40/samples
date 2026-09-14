@@ -5,8 +5,8 @@ import 'dart:math';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 const cooldownMs = 1000;
-const minRoundMs = 15000;
-const maxRoundMs = 20000;
+const minRoundMs = 10000;
+const maxRoundMs = 25000;
 
 final _rng = Random.secure();
 
@@ -76,6 +76,7 @@ class Room {
       'hostId': hostId,
       'endsAtHidden': true,
       'winnerId': winnerId,
+      'lastTapPlayerId': phase == Phase.playing ? latestTapPlayerId : null,
       'you': {
         'id': viewer.id,
         'isHost': viewer.id == hostId,
@@ -85,6 +86,16 @@ class Room {
       },
       'players': players.values.map((p) => p.publicJson(now)).toList(),
     };
+  }
+
+  String? get latestTapPlayerId {
+    Player? best;
+    for (final p in players.values) {
+      final t = p.lastTapAt;
+      if (t == null) continue;
+      if (best == null || t > best.lastTapAt!) best = p;
+    }
+    return best?.id;
   }
 
   void pushAll() {
@@ -142,6 +153,15 @@ class Room {
       send(other, stateFor(other));
     }
   }
+
+  bool isNameTaken(String name, {String? exceptId}) {
+    final key = name.toLowerCase();
+    for (final p in players.values) {
+      if (exceptId != null && p.id == exceptId) continue;
+      if (p.name.toLowerCase() == key) return true;
+    }
+    return false;
+  }
 }
 
 class GameHub {
@@ -165,6 +185,13 @@ class GameHub {
           switch (type) {
             case 'create':
               final name = _cleanName(msg['name']);
+              if (name == null) {
+                channel.sink.add(jsonEncode({
+                  'type': 'error',
+                  'message': 'Enter a player name',
+                }));
+                return;
+              }
               final code = _uniqueCode();
               final id = _id();
               final room = Room(code: code, hostId: id);
@@ -182,6 +209,13 @@ class GameHub {
               room.pushAll();
             case 'join':
               final name = _cleanName(msg['name']);
+              if (name == null) {
+                channel.sink.add(jsonEncode({
+                  'type': 'error',
+                  'message': 'Enter a player name',
+                }));
+                return;
+              }
               final code = (msg['room'] as String? ?? '').trim().toUpperCase();
               final room = rooms[code];
               if (room == null) {
@@ -198,6 +232,13 @@ class GameHub {
                 }));
                 return;
               }
+              if (room.isNameTaken(name)) {
+                channel.sink.add(jsonEncode({
+                  'type': 'error',
+                  'message': 'That name is already taken',
+                }));
+                return;
+              }
               final id = _id();
               final player = Player(id: id, name: name, sink: channel);
               room.players[id] = player;
@@ -209,6 +250,34 @@ class GameHub {
                 'room': code,
                 'isHost': id == room.hostId,
               });
+              room.pushAll();
+            case 'rename':
+              final room = _room(roomCode);
+              final player = _player(room, playerId);
+              if (player == null || room == null) return;
+              if (room.phase == Phase.playing) {
+                room.send(player, {
+                  'type': 'error',
+                  'message': 'Cannot rename during a round',
+                });
+                return;
+              }
+              final name = _cleanName(msg['name']);
+              if (name == null) {
+                room.send(player, {
+                  'type': 'error',
+                  'message': 'Enter a player name',
+                });
+                return;
+              }
+              if (room.isNameTaken(name, exceptId: player.id)) {
+                room.send(player, {
+                  'type': 'error',
+                  'message': 'That name is already taken',
+                });
+                return;
+              }
+              player.name = name;
               room.pushAll();
             case 'start':
             case 'again':
@@ -289,9 +358,11 @@ class GameHub {
     return _roomCode() + _rng.nextInt(9).toString();
   }
 
-  String _cleanName(dynamic raw) {
-    final s = (raw as String? ?? 'Player').trim();
-    if (s.isEmpty) return 'Player';
-    return s.length > 16 ? s.substring(0, 16) : s;
+  /// Returns cleaned name, or null if empty/invalid.
+  String? _cleanName(dynamic raw) {
+    var s = (raw as String? ?? '').trim();
+    if (s.isEmpty) return null;
+    if (s.length > 24) s = s.substring(0, 24);
+    return s;
   }
 }

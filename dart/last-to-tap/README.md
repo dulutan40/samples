@@ -1,6 +1,6 @@
 # Last to Tap
 
-Multiplayer nerve game: after the round starts, tap whenever you want — but the **last** legal tap before a hidden cutoff wins. The cutoff is drawn uniformly between **15 and 20 seconds**. After you tap, you cannot tap again for **1 second**.
+Multiplayer nerve game: after the round starts, tap whenever you want — but the **last** legal tap before a hidden cutoff wins. The cutoff is drawn uniformly between **10 and 25 seconds**. After you tap, you cannot tap again for **1 second**.
 
 **Stack:** Flutter client (iOS, Android, macOS, web) + a small Dart WebSocket server so every platform can share a room.
 
@@ -41,7 +41,7 @@ Default server URLs:
 ## Rules (authoritative on the server for online)
 
 1. Host starts when at least two players are connected.
-2. Hidden timer ∈ [15s, 20s] uniform.
+2. Hidden timer ∈ [10s, 25s] uniform.
 3. Tap sets your last-tap timestamp; then 1s cooldown.
 4. When the timer fires, the player with the latest tap wins (or nobody if no taps).
 

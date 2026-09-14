@@ -38,7 +38,7 @@ class HomeScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 Text(
-                  'Nerve game. Random cutoff between 15–20s.\nLast legal tap wins.',
+                  'Nerve game. Random cutoff between 10–25s.\nLast legal tap wins.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: LttColors.muted,

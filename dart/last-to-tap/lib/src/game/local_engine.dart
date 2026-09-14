@@ -13,14 +13,15 @@ class LocalRoundEngine extends ChangeNotifier {
   final _rng = Random();
 
   static const cooldown = Duration(seconds: 1);
-  static const minRound = Duration(seconds: 15);
-  static const maxRound = Duration(seconds: 20);
+  static const minRound = Duration(seconds: 10);
+  static const maxRound = Duration(seconds: 25);
 
   LocalPhase phase = LocalPhase.lobby;
   final Map<int, DateTime?> lastTap = {};
   final Map<int, DateTime> cooldownUntil = {};
   int? winnerIndex;
   Timer? _endTimer;
+  final Map<int, Timer> _cooldownTimers = {};
 
   void ensurePlayers() {
     for (var i = 0; i < names.length; i++) {
@@ -34,10 +35,27 @@ class LocalRoundEngine extends ChangeNotifier {
 
   bool onCooldown(int i) => DateTime.now().isBefore(cooldownUntil[i]!);
 
+  int? get latestTapIndex {
+    int? best;
+    DateTime? bestTime;
+    lastTap.forEach((i, t) {
+      if (t == null) return;
+      if (bestTime == null || t.isAfter(bestTime!)) {
+        bestTime = t;
+        best = i;
+      }
+    });
+    return best;
+  }
+
   void start() {
     if (names.length < 2) return;
     ensurePlayers();
     _endTimer?.cancel();
+    for (final t in _cooldownTimers.values) {
+      t.cancel();
+    }
+    _cooldownTimers.clear();
     winnerIndex = null;
     for (final i in lastTap.keys) {
       lastTap[i] = null;
@@ -57,6 +75,10 @@ class LocalRoundEngine extends ChangeNotifier {
     lastTap[i] = now;
     cooldownUntil[i] = now.add(cooldown);
     notifyListeners();
+    _cooldownTimers[i]?.cancel();
+    _cooldownTimers[i] = Timer(cooldown, () {
+      if (hasListeners) notifyListeners();
+    });
   }
 
   void end() {
@@ -79,6 +101,9 @@ class LocalRoundEngine extends ChangeNotifier {
   @override
   void dispose() {
     _endTimer?.cancel();
+    for (final t in _cooldownTimers.values) {
+      t.cancel();
+    }
     super.dispose();
   }
 }
