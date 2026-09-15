@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../audio/game_audio.dart';
+import '../game/player_name_store.dart';
 import '../game/player_names.dart';
 import '../net/online_session.dart';
 import '../theme/ltt_theme.dart';
@@ -18,12 +20,23 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
   final _room = TextEditingController();
   final _server = TextEditingController(text: defaultServerUrl());
   bool _busy = false;
+  bool _nameReady = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _name = TextEditingController(text: randomPlayerName());
+    _name = TextEditingController();
+    _loadName();
+  }
+
+  Future<void> _loadName() async {
+    final name = await PlayerNameStore.loadOrCreate();
+    if (!mounted) return;
+    setState(() {
+      _name.text = name;
+      _nameReady = true;
+    });
   }
 
   @override
@@ -62,6 +75,8 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
       if (session.room == null) {
         throw Exception('No response from server');
       }
+      await PlayerNameStore.save(name);
+      if (!mounted) return;
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
           builder: (_) => OnlineRoomScreen(session: session),
@@ -89,6 +104,11 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
+          if (!_nameReady)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: LinearProgressIndicator(color: LttColors.signal),
+            ),
           _field('Your name', _name),
           const SizedBox(height: 12),
           _field('Server', _server),
@@ -113,7 +133,7 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
           ],
           const SizedBox(height: 28),
           FilledButton(
-            onPressed: _busy ? null : () => _go(create: true),
+            onPressed: (_busy || !_nameReady) ? null : () => _go(create: true),
             style: FilledButton.styleFrom(
               backgroundColor: LttColors.signal,
               foregroundColor: LttColors.ink,
@@ -123,7 +143,7 @@ class _OnlineEntryScreenState extends State<OnlineEntryScreen> {
           ),
           const SizedBox(height: 12),
           OutlinedButton(
-            onPressed: _busy ? null : () => _go(create: false),
+            onPressed: (_busy || !_nameReady) ? null : () => _go(create: false),
             style: OutlinedButton.styleFrom(
               foregroundColor: LttColors.cream,
               side: const BorderSide(color: LttColors.stroke),
@@ -164,20 +184,40 @@ class OnlineRoomScreen extends StatefulWidget {
 }
 
 class _OnlineRoomScreenState extends State<OnlineRoomScreen> {
+  String? _prevPhase;
+  String? _prevLastTap;
+
   @override
   void initState() {
     super.initState();
     widget.session.addListener(_onUpdate);
+    _prevPhase = widget.session.phase;
+    _prevLastTap = widget.session.lastTapPlayerId;
   }
 
   @override
   void dispose() {
     widget.session.removeListener(_onUpdate);
+    GameAudio.instance.stopRoundClock();
     widget.session.dispose();
     super.dispose();
   }
 
   void _onUpdate() {
+    final s = widget.session;
+    if (s.phase == 'playing' && _prevPhase != 'playing') {
+      GameAudio.instance.startRoundClock();
+    }
+    if (s.phase == 'results' && _prevPhase == 'playing') {
+      GameAudio.instance.stopRoundClock(playTimeUp: true);
+    }
+    if (s.phase == 'playing' &&
+        s.lastTapPlayerId != null &&
+        s.lastTapPlayerId != _prevLastTap) {
+      GameAudio.instance.playTap();
+    }
+    _prevPhase = s.phase;
+    _prevLastTap = s.lastTapPlayerId;
     if (mounted) setState(() {});
   }
 
@@ -249,6 +289,7 @@ class _OnlineRoomScreenState extends State<OnlineRoomScreen> {
     if (next != null) {
       s.error = null;
       s.rename(next);
+      await PlayerNameStore.save(next);
     }
   }
 
@@ -269,7 +310,10 @@ class _OnlineRoomScreenState extends State<OnlineRoomScreen> {
           if (canRename)
             TextButton(
               onPressed: _changeName,
-              child: const Text('Rename', style: TextStyle(color: LttColors.signal)),
+              child: const Text(
+                'Rename',
+                style: TextStyle(color: LttColors.signal),
+              ),
             ),
         ],
       ),
@@ -281,7 +325,10 @@ class _OnlineRoomScreenState extends State<OnlineRoomScreen> {
             if (s.error != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Text(s.error!, style: const TextStyle(color: LttColors.coral)),
+                child: Text(
+                  s.error!,
+                  style: const TextStyle(color: LttColors.coral),
+                ),
               ),
             Text(
               _phaseLabel(s.phase),
@@ -440,7 +487,10 @@ class _Results extends StatelessWidget {
             child: const Text('Play again'),
           )
         else
-          const Text('Waiting for host…', style: TextStyle(color: LttColors.muted)),
+          const Text(
+            'Waiting for host…',
+            style: TextStyle(color: LttColors.muted),
+          ),
       ],
     );
   }

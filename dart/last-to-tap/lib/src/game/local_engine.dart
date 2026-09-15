@@ -68,10 +68,11 @@ class LocalRoundEngine extends ChangeNotifier {
     _endTimer = Timer(Duration(milliseconds: ms), end);
   }
 
-  void tap(int i) {
-    if (phase != LocalPhase.playing) return;
+  /// Returns true when the tap was accepted (not on cooldown / wrong phase).
+  bool tap(int i) {
+    if (phase != LocalPhase.playing) return false;
     final now = DateTime.now();
-    if (now.isBefore(cooldownUntil[i]!)) return;
+    if (now.isBefore(cooldownUntil[i]!)) return false;
     lastTap[i] = now;
     cooldownUntil[i] = now.add(cooldown);
     notifyListeners();
@@ -79,6 +80,7 @@ class LocalRoundEngine extends ChangeNotifier {
     _cooldownTimers[i] = Timer(cooldown, () {
       if (hasListeners) notifyListeners();
     });
+    return true;
   }
 
   void end() {

@@ -8,8 +8,10 @@ Multiplayer nerve game: after the round starts, tap whenever you want — but th
 
 | Mode | Use |
 | --- | --- |
-| **Online room** | Create/join with a 4-letter code. Host starts. Works across devices on the same server. |
-| **Local party** | 2–8 buttons on one screen — couch play, no server. |
+| **Online room** | Create/join with a 4-letter code. Host starts. Works across devices on the same server. Your display name is remembered on this device. |
+| **Local party** | 2–8 seats on one screen. On desktop/macOS each seat has a key (`A S D F J K L ;`) — release before tapping again. Multi-touch pads work on large touch screens. |
+
+Audio: tap blip on every accepted tap, tick–tock that speeds up over the first 10s of a round (then stays fast), and a time-up sting when the cutoff hits.
 
 The exact end time is **not** shown during a round (that would spoil the game).
 
