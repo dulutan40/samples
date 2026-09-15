@@ -46,9 +46,9 @@ class GameAudio {
   }
 
   Duration _intervalForElapsed(Duration elapsed) {
-    // Slow at round start → fast by 10s → hold that pace until the cutoff.
+    // Slow at round start → faster by 10s (75% of the old top speed) → hold.
     const slowMs = 900.0;
-    const fastMs = 180.0;
+    const fastMs = 240.0; // was 180ms; ~75% of that beat rate
     const ramp = 10.0;
     final t = (elapsed.inMilliseconds / 1000.0 / ramp).clamp(0.0, 1.0);
     final ms = slowMs + (fastMs - slowMs) * t;
